@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BacFrançais.io — Console de curation EAF (v3 · collecte réelle)</title>
+<title>BacFrançais.io — Console de curation EAF (v4 · Supabase)</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%23C22F21"/><text x="16" y="23" font-family="Georgia" font-size="19" font-weight="bold" fill="%23FCFAF3" text-anchor="middle">B</text></svg>'>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,600&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -28,6 +28,7 @@ nav.nav button.on .count{background:rgba(255,255,255,.25)}
 .sched-mini{margin-top:10px;font-size:11px;color:rgba(246,242,232,.7)}.sched-mini b{color:var(--gold)}
 .storage-tag{display:inline-block;margin-top:8px;font-size:10px;padding:2px 8px;border-radius:99px;background:rgba(46,125,91,.25);color:#9FE0BE}
 .storage-tag.mem{background:rgba(199,107,30,.3);color:#F0C28A}
+.storage-tag.err{background:rgba(194,47,33,.3);color:#FFB0A0}
 main.main{padding:0 0 60px;min-width:0}
 .page-head{padding:22px 32px 16px;border-bottom:2px solid var(--ink);background:var(--paper-2);position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .page-head h1{font-family:"Fraunces";font-weight:900;font-size:24px}.page-head .sub{color:var(--ink-soft);font-size:12.5px;max-width:58ch}.page-head .spacer{flex:1}
@@ -91,9 +92,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 .diag-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px dashed var(--line);font-size:13px}
 .diag-row:last-child{border:none}
 .diag-ico{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:13px;flex:none}
-.diag-ok{background:var(--green);color:#fff}.diag-ko{background:var(--red);color:#fff}.diag-run{background:var(--gold);color:#fff}
+.diag-ok{background:var(--green);color:#fff}.diag-ko{background:var(--red);color:#fff}
 .fatal{background:#FBEFEC;border:2px solid var(--red);border-radius:12px;padding:24px;margin:24px;color:var(--ink)}
 .hint{background:rgba(37,109,123,.08);border-left:3px solid var(--teal);padding:9px 12px;border-radius:6px;font-size:12px;color:var(--ink-soft);margin-top:8px}
+.loading-screen{display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:14px}
+.loading-screen .spinner{width:40px;height:40px;border:4px solid rgba(26,32,53,.1);border-top-color:var(--red);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 @media (max-width:900px){.app{grid-template-columns:1fr}aside.side{position:static;height:auto}nav.nav{display:flex;flex-wrap:wrap}.body{padding:16px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -101,19 +105,19 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v3 · collecte réelle</small></div></div>
+    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4</small></div></div>
     <nav class="nav" id="nav">
       <button data-view="dashboard" class="on">📊 Tableau de bord</button>
       <button data-view="liens">🔗 Surveillance des liens <span class="count" id="cLiens">0</span></button>
       <button data-view="oeuvres">📚 Œuvres au programme</button>
-      <button data-view="collecte">📥 Collecte &amp; Inbox <span class="count" id="cInbox">0</span></button>
+      <button data-view="collecte">📥 Collecte & Inbox <span class="count" id="cInbox">0</span></button>
       <button data-view="couverture">🗂️ Couverture</button>
-      <button data-view="workflow">✍️ Workflow &amp; Audit</button>
+      <button data-view="workflow">✍️ Workflow & Audit</button>
       <button data-view="digest">📰 Digest</button>
       <button data-view="rapports">🚨 Signalements <span class="count" id="cRapp">0</span></button>
       <button data-view="candidats">🆕 Sources candidates <span class="count" id="cCand">0</span></button>
       <button data-view="diagnostic">🧪 Diagnostic</button>
-      <button data-view="securite">⚙️ Sécurité &amp; Données</button>
+      <button data-view="securite">⚙️ Sécurité & Données</button>
     </nav>
     <div class="side-foot">
       Rôle actif
@@ -124,7 +128,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
         <option value="lecture">👁 Lecture seule</option>
       </select>
       <div class="sched-mini" id="schedMini">Planificateur : <b>—</b></div>
-      <span class="storage-tag" id="storageTag">💾 stockage…</span>
+      <span class="storage-tag" id="storageTag">💾 initialisation…</span>
     </div>
   </aside>
 
@@ -135,7 +139,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
       <button class="btn btn--red" id="btnCollectNow">⚡ Lancer une collecte</button>
       <button class="btn btn--ghost" id="btnLinksNow">🔎 Vérifier les liens</button>
     </div>
-    <div class="body" id="view"></div>
+    <div class="body" id="view">
+      <div class="loading-screen">
+        <div class="spinner"></div>
+        <div class="muted small">Chargement de l'état depuis Supabase…</div>
+      </div>
+    </div>
   </main>
 </div>
 <div class="toast" id="toast"></div>
@@ -143,713 +152,1030 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <script>
 "use strict";
 /* ================================================================
-   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v3 (collecte réelle intégrée)
-   Modifications intégrées : A) REAL_FEEDS · B) checkLink via /api/check-link
-   · C) runCollect via /api/collect (runCollectSimulee + ingestCandidate)
+   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v4 (Supabase + réseau réel)
    ================================================================ */
 
-/* ---------- 1. STOCKAGE SÉCURISÉ ---------- */
-const LS_KEY="bacfr_curation_v3";
-const _mem={};
-const Storage={
-  persistent:true,
-  read(){ try{ const raw=localStorage.getItem(LS_KEY); return raw?JSON.parse(raw):null; }catch(e){ this.persistent=false; return _mem[LS_KEY]||null; } },
-  write(v){ try{ localStorage.setItem(LS_KEY,JSON.stringify(v)); }catch(e){ this.persistent=false; _mem[LS_KEY]=v; } },
-  clear(){ try{ localStorage.removeItem(LS_KEY); }catch(e){ delete _mem[LS_KEY]; } }
+/* ---------- 1. STOCKAGE SUPABASE (avec fallback mémoire) ---------- */
+const Storage = {
+  persistent: true,
+  backend: 'supabase',
+  _memData: null,
+  _saveTimeout: null,
+  _lastSavedJson: null,
+
+  async init() {
+    try {
+      const resp = await fetch('/api/load-data');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const payload = await resp.json();
+      if (payload && payload.state && payload.state.version === 3) {
+        this._memData = payload.state;
+        this._lastSavedJson = JSON.stringify(payload.state);
+        return this._memData;
+      }
+      throw new Error('État Supabase invalide');
+    } catch (e) {
+      console.warn('[Storage] Supabase indisponible, fallback mémoire :', e.message);
+      this.persistent = false;
+      this.backend = 'memory';
+      return null;
+    }
+  },
+
+  read() { return this._memData; },
+
+  write(v) {
+    this._memData = v;
+    if (this._saveTimeout) clearTimeout(this._saveTimeout);
+    this._saveTimeout = setTimeout(async () => {
+      try {
+        const json = JSON.stringify(v);
+        // Éviter les sauvegardes redondantes
+        if (json === this._lastSavedJson) return;
+        const resp = await fetch('/api/save-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: json
+        });
+        if (resp.ok) {
+          this._lastSavedJson = json;
+        } else {
+          console.error('[Storage] Sauvegarde échouée : HTTP ' + resp.status);
+        }
+      } catch (e) {
+        console.error('[Storage] Erreur sauvegarde :', e);
+      }
+    }, 1000);
+  },
+
+  clear() {
+    this._memData = null;
+    this._lastSavedJson = null;
+  }
 };
-const $=s=>document.querySelector(s);
-const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const nowISO=()=>new Date().toISOString();
-const fmtDT=iso=>{const d=new Date(iso);return d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"2-digit"})+" "+d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});};
-const uid=()=>Math.random().toString(36).slice(2,10);
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nowISO = () => new Date().toISOString();
+const fmtDT = iso => {
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' +
+         d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+};
+const uid = () => Math.random().toString(36).slice(2, 10);
 
 /* ---------- 2. DONNÉES DE RÉFÉRENCE ---------- */
-const OBJETS={poesie:{l:"Poésie",c:"b-poesie"},idees:{l:"Littérature d'idées",c:"b-idees"},roman:{l:"Roman & récit",c:"b-roman"},theatre:{l:"Théâtre",c:"b-theatre"}};
-const OEUVRES=[
- {id:"rimbaud",titre:"Cahiers de Douai",auteur:"Rimbaud",objet:"poesie",voie:"G",parcours:"L'émancipation créatrice",statut:"Au programme",session:"2025-2026",kw:["cahiers de douai","rimbaud"]},
- {id:"ponge",titre:"La Rage de l'expression",auteur:"Francis Ponge",objet:"poesie",voie:"G",parcours:"Dans l'atelier du poète",statut:"Au programme",session:"2025-2026",kw:["rage de l'expression","ponge"]},
- {id:"dorion",titre:"Mes Forêts",auteur:"Hélène Dorion",objet:"poesie",voie:"G",parcours:"La nature entre science et poésie",statut:"Au programme",session:"2025-2026",kw:["mes forêts","dorion"]},
- {id:"laboetie",titre:"Discours de la servitude volontaire",auteur:"La Boétie",objet:"idees",voie:"G",parcours:"Servitude et liberté",statut:"Au programme",session:"2025-2026",kw:["servitude volontaire","boétie","boetie"]},
- {id:"gouges",titre:"Déclaration des droits de la femme et de la citoyenne",auteur:"Olympe de Gouges",objet:"idees",voie:"G",parcours:"Écrire et combattre pour l'égalité",statut:"Au programme",session:"2025-2026",kw:["droits de la femme","gouges"]},
- {id:"labruyere",titre:"Les Caractères (livres V à XI)",auteur:"La Bruyère",objet:"idees",voie:"G",parcours:"Peindre les Hommes, examiner la morale",statut:"Au programme",session:"2025-2026",kw:["les caractères","caracteres","bruyère","bruyere"]},
- {id:"prevost",titre:"Manon Lescaut",auteur:"Abbé Prévost",objet:"roman",voie:"G",parcours:"Personnages en marge, plaisirs du romanesque",statut:"Au programme",session:"2025-2026",kw:["manon lescaut","prévost","prevost"]},
- {id:"balzac",titre:"La Peau de chagrin",auteur:"Balzac",objet:"roman",voie:"G",parcours:"Les romans de l'énergie : création et destruction",statut:"Au programme",session:"2025-2026",kw:["peau de chagrin","balzac"]},
- {id:"colette",titre:"Sido suivi de Les Vrilles de la vigne",auteur:"Colette",objet:"roman",voie:"G",parcours:"La célébration du monde",statut:"Au programme",session:"2025-2026",kw:["sido","vrilles de la vigne","colette"]},
- {id:"corneille",titre:"Le Menteur",auteur:"Corneille",objet:"theatre",voie:"G",parcours:"Mensonge et comédie",statut:"Au programme",session:"2025-2026",kw:["le menteur","corneille"]},
- {id:"musset",titre:"On ne badine pas avec l'amour",auteur:"Musset",objet:"theatre",voie:"G",parcours:"Les jeux du cœur et de la parole",statut:"Au programme",session:"2025-2026",kw:["badine pas avec l'amour","musset"]},
- {id:"sarraute",titre:"Pour un oui ou pour un non",auteur:"Nathalie Sarraute",objet:"theatre",voie:"G",parcours:"Théâtre et dispute",statut:"Au programme",session:"2025-2026",kw:["pour un oui ou pour un non","sarraute"]},
- {id:"rabelais",titre:"Gargantua",auteur:"Rabelais",objet:"idees",voie:"T",parcours:"La bonne éducation",statut:"Au programme",session:"2025-2026",kw:["gargantua","rabelais"]},
- {id:"troyes",titre:"Le Chevalier de la charrette",auteur:"Chrétien de Troyes",objet:"roman",voie:"T",parcours:"Le personnage de roman",statut:"Au programme",session:"2025-2026",kw:["chevalier de la charrette","troyes"]},
- {id:"hugo",titre:"Ruy Blas",auteur:"Victor Hugo",objet:"theatre",voie:"T",parcours:"Maîtres et valets",statut:"Au programme",session:"2025-2026",kw:["ruy blas","hugo"]},
- {id:"lagarce",titre:"Juste la fin du monde",auteur:"Jean-Luc Lagarce",objet:"theatre",voie:"T",parcours:"Crise familiale, crise de la parole",statut:"Au programme",session:"2025-2026",kw:["juste la fin du monde","lagarce"]}
-];
-const SOURCES=[
- {id:"lumni",nom:"Lumni",feed:"https://www.lumni.fr/lycee/premiere/bac/revisions-du-bac-francais",actif:true},
- {id:"franceculture",nom:"France Culture",feed:"https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres",actif:true},
- {id:"comedie",nom:"Comédie-Française",feed:"https://www.comedie-francaise.fr/2024-2025/en-ligne",actif:true},
- {id:"educarte",nom:"Educ'Arte",feed:"https://educ.arte.tv/thematic/les-oeuvres-au-programme-du-baccalaureat-1",actif:true},
- {id:"amelie",nom:"Amélie Vioux",feed:"https://www.youtube.com/@AmelieVioux-Bacdefrancais",actif:true},
- {id:"aurore",nom:"Aurore Ponsonnet",feed:"https://www.youtube.com/results?search_query=Aurore+Ponsonnet",actif:true},
- {id:"weblettres",nom:"Weblettres",feed:"https://www.weblettres.net/pedagogie/index2.php?rub=7",actif:true},
- {id:"eduscol",nom:"Éduscol — Analyses de textes",feed:"https://eduscol.education.gouv.fr/6801/des-analyses-de-textes-en-lien-avec-les-objets-d-etude-du-programme-de-premiere-en-francais",actif:true},
- {id:"magister",nom:"Site Magister",feed:"https://www.site-magister.com/",actif:true},
- {id:"hachette",nom:"L'Écume des Œuvres (Hachette)",feed:"https://www.enseignants.hachette-education.com/",actif:true},
- {id:"biloba",nom:"Studio Biloba",feed:"https://podcasts.apple.com/fr/podcast/bac-de-fran%C3%A7ais-programme-2026/id1734216139",actif:true},
- {id:"pinel",nom:"Passe ton bac de français d'abord",feed:"https://podcasts.apple.com/fr/podcast/passe-ton-bac-de-fran%C3%A7ais-dabord/id1559609050",actif:true}
+const OBJETS = {
+  poesie: { l: 'Poésie', c: 'b-poesie' },
+  idees:  { l: "Littérature d'idées", c: 'b-idees' },
+  roman:  { l: 'Roman & récit', c: 'b-roman' },
+  theatre:{ l: 'Théâtre', c: 'b-theatre' }
+};
+
+const OEUVRES = [
+ { id: 'rimbaud', titre: 'Cahiers de Douai', auteur: 'Rimbaud', objet: 'poesie', voie: 'G', parcours: "L'émancipation créatrice", statut: 'Au programme', session: '2025-2026', kw: ['cahiers de douai', 'rimbaud'] },
+ { id: 'ponge', titre: 'La Rage de l\'expression', auteur: 'Francis Ponge', objet: 'poesie', voie: 'G', parcours: "Dans l'atelier du poète", statut: 'Au programme', session: '2025-2026', kw: ['rage de l\'expression', 'ponge'] },
+ { id: 'dorion', titre: 'Mes Forêts', auteur: 'Hélène Dorion', objet: 'poesie', voie: 'G', parcours: 'La nature entre science et poésie', statut: 'Au programme', session: '2025-2026', kw: ['mes forêts', 'dorion'] },
+ { id: 'laboetie', titre: 'Discours de la servitude volontaire', auteur: 'La Boétie', objet: 'idees', voie: 'G', parcours: 'Servitude et liberté', statut: 'Au programme', session: '2025-2026', kw: ['servitude volontaire', 'boétie', 'boetie'] },
+ { id: 'gouges', titre: 'Déclaration des droits de la femme et de la citoyenne', auteur: 'Olympe de Gouges', objet: 'idees', voie: 'G', parcours: "Écrire et combattre pour l'égalité", statut: 'Au programme', session: '2025-2026', kw: ['droits de la femme', 'gouges'] },
+ { id: 'labruyere', titre: 'Les Caractères (livres V à XI)', auteur: 'La Bruyère', objet: 'idees', voie: 'G', parcours: 'Peindre les Hommes, examiner la morale', statut: 'Au programme', session: '2025-2026', kw: ['les caractères', 'caracteres', 'bruyère', 'bruyere'] },
+ { id: 'prevost', titre: 'Manon Lescaut', auteur: 'Abbé Prévost', objet: 'roman', voie: 'G', parcours: 'Personnages en marge, plaisirs du romanesque', statut: 'Au programme', session: '2025-2026', kw: ['manon lescaut', 'prévost', 'prevost'] },
+ { id: 'balzac', titre: 'La Peau de chagrin', auteur: 'Balzac', objet: 'roman', voie: 'G', parcours: "Les romans de l'énergie : création et destruction", statut: 'Au programme', session: '2025-2026', kw: ['peau de chagrin', 'balzac'] },
+ { id: 'colette', titre: 'Sido suivi de Les Vrilles de la vigne', auteur: 'Colette', objet: 'roman', voie: 'G', parcours: 'La célébration du monde', statut: 'Au programme', session: '2025-2026', kw: ['sido', 'vrilles de la vigne', 'colette'] },
+ { id: 'corneille', titre: 'Le Menteur', auteur: 'Corneille', objet: 'theatre', voie: 'G', parcours: 'Mensonge et comédie', statut: 'Au programme', session: '2025-2026', kw: ['le menteur', 'corneille'] },
+ { id: 'musset', titre: "On ne badine pas avec l'amour", auteur: 'Musset', objet: 'theatre', voie: 'G', parcours: 'Les jeux du cœur et de la parole', statut: 'Au programme', session: '2025-2026', kw: ['badine pas avec l\'amour', 'musset'] },
+ { id: 'sarraute', titre: 'Pour un oui ou pour un non', auteur: 'Nathalie Sarraute', objet: 'theatre', voie: 'G', parcours: 'Théâtre et dispute', statut: 'Au programme', session: '2025-2026', kw: ['pour un oui ou pour un non', 'sarraute'] },
+ { id: 'rabelais', titre: 'Gargantua', auteur: 'Rabelais', objet: 'idees', voie: 'T', parcours: 'La bonne éducation', statut: 'Au programme', session: '2025-2026', kw: ['gargantua', 'rabelais'] },
+ { id: 'troyes', titre: 'Le Chevalier de la charrette', auteur: 'Chrétien de Troyes', objet: 'roman', voie: 'T', parcours: 'Le personnage de roman', statut: 'Au programme', session: '2025-2026', kw: ['chevalier de la charrette', 'troyes'] },
+ { id: 'hugo', titre: 'Ruy Blas', auteur: 'Victor Hugo', objet: 'theatre', voie: 'T', parcours: 'Maîtres et valets', statut: 'Au programme', session: '2025-2026', kw: ['ruy blas', 'hugo'] },
+ { id: 'lagarce', titre: 'Juste la fin du monde', auteur: 'Jean-Luc Lagarce', objet: 'theatre', voie: 'T', parcours: 'Crise familiale, crise de la parole', statut: 'Au programme', session: '2025-2026', kw: ['juste la fin du monde', 'lagarce'] }
 ];
 
-/* ============================================================
-   ★ MODIFICATION A — FLUX RÉELS pour la collecte (mode réseau réel)
-   Ces URLs RSS/Atom sont interrogées par api/collect.js côté serveur.
-   Les flux cassés sont signalés dans le journal : corrigez-les ici.
-   Format YouTube : https://www.youtube.com/feeds/videos.xml?channel_id=VOTRE_ID
-   ============================================================ */
-const REAL_FEEDS=[
- {id:"franceculture-oeuvre",nom:"France Culture — La Compagnie des œuvres",feed:"https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss"},
- {id:"franceculture-texte",nom:"France Culture — En français dans le texte",feed:"https://www.radiofrance.fr/franceculture/podcasts/en-francais-dans-le-texte/rss"},
- {id:"pinel",nom:"Passe ton bac de français d'abord (É. Pinel)",feed:"https://feeds.acast.com/public/shows/passe-ton-bac-de-francais-dabord"},
- {id:"biloba",nom:"Bac Français — Studio Biloba",feed:"https://feeds.acast.com/public/shows/bac-de-francais"},
- {id:"lumni",nom:"Lumni (flux global)",feed:"https://www.lumni.fr/rss"}
- // Exemple YouTube (remplacez l'ID de chaîne) :
- // ,{id:"youtube-1",nom:"Chaîne YouTube EAF",feed:"https://www.youtube.com/feeds/videos.xml?channel_id=UC..."}
+/* Sources whitelist (pour scoring, non pour collecte réelle) */
+const SOURCES = [
+ { id: 'lumni', nom: 'Lumni', feed: 'https://www.lumni.fr/lycee/premiere/bac/revisions-du-bac-francais', actif: true },
+ { id: 'franceculture', nom: 'France Culture', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres', actif: true },
+ { id: 'comedie', nom: 'Comédie-Française', feed: 'https://www.comedie-francaise.fr/2024-2025/en-ligne', actif: true },
+ { id: 'educarte', nom: "Educ'Arte", feed: 'https://educ.arte.tv/thematic/les-oeuvres-au-programme-du-baccalaureat-1', actif: true },
+ { id: 'amelie', nom: 'Amélie Vioux', feed: 'https://www.youtube.com/@AmelieVioux-Bacdefrancais', actif: true },
+ { id: 'aurore', nom: 'Aurore Ponsonnet', feed: 'https://www.youtube.com/results?search_query=Aurore+Ponsonnet', actif: true },
+ { id: 'weblettres', nom: 'Weblettres', feed: 'https://www.weblettres.net/pedagogie/index2.php?rub=7', actif: true },
+ { id: 'eduscol', nom: 'Éduscol — Analyses de textes', feed: 'https://eduscol.education.gouv.fr/6801/des-analyses-de-textes-en-lien-avec-les-objets-d-etude-du-programme-de-premiere-en-francais', actif: true },
+ { id: 'magister', nom: 'Site Magister', feed: 'https://www.site-magister.com/', actif: true },
+ { id: 'hachette', nom: "L'Écume des Œuvres (Hachette)", feed: 'https://www.enseignants.hachette-education.com/', actif: true },
+ { id: 'biloba', nom: 'Studio Biloba', feed: 'https://podcasts.apple.com/fr/podcast/bac-de-francais-programme-2026/id1734216139', actif: true },
+ { id: 'pinel', nom: 'Passe ton bac de français d\'abord', feed: 'https://podcasts.apple.com/fr/podcast/passe-ton-bac-de-francais-dabord/id1559609050', actif: true }
 ];
 
-const POOL=[
- {t:"Explication linéaire : La Peau de chagrin, l'incipit",s:"lumni",u:"https://www.lumni.fr/video/peau-de-chagrin-incipit",f:"Vidéo",x:"Analyse pas à pas de l'ouverture du roman de Balzac.",d:"2026-02-10"},
- {t:"Lecture linéaire — Ruy Blas, acte I scène 1",s:"comedie",u:"https://www.comedie-francaise.fr/actualites/ruy-blas-lecture",f:"Vidéo",x:"Mise en voix par la troupe, double énonciation.",d:"2026-02-08"},
- {t:"Manon Lescaut : dissertation sur le personnage en marge",s:"magister",u:"https://www.site-magister.com/manon-lescaut-dissertation.htm",f:"Texte",x:"Plan détaillé et problématisation.",d:"2026-02-06"},
- {t:"Cahiers de Douai : parcours l'émancipation créatrice",s:"franceculture",u:"https://www.radiofrance.fr/franceculture/podcasts/rimbaud-cahiers",f:"Podcast",x:"Lecture expressive et trajectoire du jeune Rimbaud.",d:"2026-02-05"},
- {t:"Le Menteur, Corneille : le quiproquo comique",s:"amelie",u:"https://www.youtube.com/watch?v=menteur-quiproquo",f:"Vidéo",x:"Carte mentale des mouvements du texte.",d:"2026-02-03"},
- {t:"Explication linéaire : La Peau de chagrin, l'incipit",s:"weblettres",u:"https://www.lumni.fr/video/peau-de-chagrin-incipit",f:"Texte",x:"Reprise (doublon détectable à l'URL).",d:"2026-02-11"},
- {t:"On ne badine pas avec l'amour : scène du lac",s:"aurore",u:"https://www.youtube.com/watch?v=badine-lac",f:"Vidéo",x:"Jeux du cœur et de la parole.",d:"2026-02-02"},
- {t:"Gargantua : l'éducation humaniste",s:"lumni",u:"https://www.lumni.fr/video/gargantua-education",f:"Vidéo",x:"Méthode de contraction, voie technologique.",d:"2026-01-30"},
- {t:"La Rage de l'expression, Ponge : l'atelier du poète",s:"franceculture",u:"https://www.radiofrance.fr/franceculture/podcasts/ponge-atelier",f:"Podcast",x:"Le travail de la langue chez Ponge.",d:"2026-01-28"},
- {t:"Les Caractères, La Bruyère : portrait de Cour",s:"magister",u:"https://www.site-magister.com/caracteres-cour.htm",f:"Texte",x:"Analyse sémantique et plan de commentaire.",d:"2026-01-25"},
- {t:"Sarraute, Pour un oui ou pour un non : les tropismes",s:"biloba",u:"https://podcasts.apple.com/fr/podcast/sarraute-tropismes",f:"Podcast",x:"Enjeux du théâtre de la dispute.",d:"2026-01-22"},
- {t:"Sido, Colette : la célébration du monde",s:"educarte",u:"https://educ.arte.tv/video/sido-colette",f:"Vidéo",x:"Documentaire et repères.",d:"2026-01-20"},
- {t:"Olympe de Gouges : écrire et combattre pour l'égalité",s:"pinel",u:"https://podcasts.apple.com/fr/podcast/gouges-egalite",f:"Podcast",x:"Contexte historique et argumentation.",d:"2026-01-18"},
- {t:"La Peau de chagrin : dissertation création et destruction",s:"amelie",u:"https://www.youtube.com/watch?v=peau-chagrin-dissert",f:"Vidéo",x:"Plan dialectique et exemples rédigés.",d:"2026-01-15"},
- {t:"Le Chevalier de la charrette : le héros courtois",s:"lumni",u:"https://www.lumni.fr/video/charrette-heros",f:"Vidéo",x:"Analyse du personnage, voie technologique.",d:"2026-01-12"},
- {t:"Juste la fin du monde : l'épanorthose chez Lagarce",s:"comedie",u:"https://www.comedie-francaise.fr/actualites/lagarce-epanorthose",f:"Vidéo",x:"Grammaire contemporaine et silences tragiques.",d:"2026-01-10"},
- {t:"Mes Forêts, Hélène Dorion : nature et science",s:"franceculture",u:"https://www.radiofrance.fr/franceculture/podcasts/dorion-forets",f:"Podcast",x:"Lecture expressive et parcours associé.",d:"2026-01-08"},
- {t:"La Boétie : servitude et liberté",s:"magister",u:"https://www.site-magister.com/boetie-servitude.htm",f:"Texte",x:"Problématisation et plan de dissertation.",d:"2026-01-05"},
- {t:"Manon Lescaut : résumé et personnages (audio)",s:"hachette",u:"https://www.enseignants.hachette-education.com/audio/manon-lescaut",f:"Audio",x:"Format court pour lecture cursive.",d:"2026-01-03"},
- {t:"On ne badine pas avec l'amour : scène du lac",s:"weblettres",u:"https://www.weblettres.net/analyses/badine-lac",f:"Texte",x:"Version texte (doublon de contenu).",d:"2026-02-12"},
- {t:"Corneille, Le Menteur : mensonge et comédie",s:"eduscol",u:"https://eduscol.education.gouv.fr/analyses/menteur",f:"Texte",x:"Analyse institutionnelle de référence.",d:"2026-01-01"},
- {t:"Rimbaud, Cahiers de Douai : Ma Bohème",s:"aurore",u:"https://www.youtube.com/watch?v=rimbaud-ma-boheme",f:"Vidéo",x:"Mouvements du texte et question de grammaire.",d:"2025-12-28"}
+/* ★ Flux RSS RÉELS pour la collecte (mode réseau réel)
+   Ces URLs sont interrogées par /api/collect.js via rss-parser.
+   Les flux Apple Podcasts renvoient parfois des pages HTML : si le journal
+   indique "flux inaccessible", remplace l'URL par le flux RSS hébergé
+   sur la plateforme d'hébergement du podcast (Acast, Audiomeans, RSS.com…). */
+const REAL_FEEDS = [
+  { id: 'franceculture-oeuvre', nom: 'France Culture — La Compagnie des œuvres',
+    feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss' },
+  { id: 'franceculture-philosophie', nom: 'France Culture — Les Chemins de la philosophie',
+    feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss' },
+  { id: 'franceculture-texte', nom: 'France Culture — En français dans le texte',
+    feed: 'https://www.radiofrance.fr/franceculture/podcasts/en-francais-dans-le-texte/rss' },
+  { id: 'franceinter-masque', nom: 'France Inter — Le Masque et la Plume',
+    feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss' }
+  // Ajouter ici : YouTube (https://www.youtube.com/feeds/videos.xml?channel_id=...),
+  // podcasts Acast / Audiomeans / RSS.com, etc.
 ];
-const CAND_POOL=[
- {id:"c1",nom:"Le Mock / Bulledop (BookTube)",feed:"https://www.youtube.com/results?search_query=le+mock+bulledop",type:"BookTube",score:7.5,raison:"Dépoussière le patrimoine via la pop culture."},
- {id:"c2",nom:"Médiaclasse (YouTube)",feed:"https://www.youtube.com/results?search_query=mediaclasse",type:"Vidéo pédagogique",score:8,raison:"Schématisations animées des figures de style."},
- {id:"c3",nom:"Études-littéraires.com",feed:"https://www.etudes-litteraires.com/",type:"Forum & fiches",score:8.5,raison:"Entraide interactive, critiques correctives."},
- {id:"c4",nom:"Projet Voltaire",feed:"https://www.projet-voltaire.fr/",type:"Remédiation langue",score:8,raison:"Sécurise l'orthographe à l'écrit."},
- {id:"c5",nom:"Barbey Pédagogie",feed:"https://www.barbeypedagogie.fr/",type:"Éducation médias",score:8,raison:"Structures journalistiques, argumentation."}
+
+/* Gisement de démonstration (mode Simulation) */
+const POOL = [
+ { t: 'Explication linéaire : La Peau de chagrin, l\'incipit', s: 'lumni', u: 'https://www.lumni.fr/video/peau-de-chagrin-incipit', f: 'Vidéo', x: 'Analyse pas à pas de l\'ouverture du roman de Balzac.', d: '2026-02-10' },
+ { t: 'Lecture linéaire — Ruy Blas, acte I scène 1', s: 'comedie', u: 'https://www.comedie-francaise.fr/actualites/ruy-blas-lecture', f: 'Vidéo', x: 'Mise en voix par la troupe, double énonciation.', d: '2026-02-08' },
+ { t: 'Manon Lescaut : dissertation sur le personnage en marge', s: 'magister', u: 'https://www.site-magister.com/manon-lescaut-dissertation.htm', f: 'Texte', x: 'Plan détaillé et problématisation.', d: '2026-02-06' },
+ { t: 'Cahiers de Douai : parcours l\'émancipation créatrice', s: 'franceculture', u: 'https://www.radiofrance.fr/franceculture/podcasts/rimbaud-cahiers', f: 'Podcast', x: 'Lecture expressive et trajectoire du jeune Rimbaud.', d: '2026-02-05' },
+ { t: 'Le Menteur, Corneille : le quiproquo comique', s: 'amelie', u: 'https://www.youtube.com/watch?v=menteur-quiproquo', f: 'Vidéo', x: 'Carte mentale des mouvements du texte.', d: '2026-02-03' },
+ { t: 'Explication linéaire : La Peau de chagrin, l\'incipit', s: 'weblettres', u: 'https://www.lumni.fr/video/peau-de-chagrin-incipit', f: 'Texte', x: 'Reprise (doublon détectable à l\'URL).', d: '2026-02-11' },
+ { t: "On ne badine pas avec l'amour : scène du lac", s: 'aurore', u: 'https://www.youtube.com/watch?v=badine-lac', f: 'Vidéo', x: 'Jeux du cœur et de la parole.', d: '2026-02-02' },
+ { t: "Gargantua : l'éducation humaniste", s: 'lumni', u: 'https://www.lumni.fr/video/gargantua-education', f: 'Vidéo', x: 'Méthode de contraction, voie technologique.', d: '2026-01-30' },
+ { t: "La Rage de l'expression, Ponge : l'atelier du poète", s: 'franceculture', u: 'https://www.radiofrance.fr/franceculture/podcasts/ponge-atelier', f: 'Podcast', x: 'Le travail de la langue chez Ponge.', d: '2026-01-28' },
+ { t: 'Les Caractères, La Bruyère : portrait de Cour', s: 'magister', u: 'https://www.site-magister.com/caracteres-cour.htm', f: 'Texte', x: 'Analyse sémantique et plan de commentaire.', d: '2026-01-25' },
+ { t: 'Sarraute, Pour un oui ou pour un non : les tropismes', s: 'biloba', u: 'https://podcasts.apple.com/fr/podcast/sarraute-tropismes', f: 'Podcast', x: 'Enjeux du théâtre de la dispute.', d: '2026-01-22' },
+ { t: 'Sido, Colette : la célébration du monde', s: 'educarte', u: 'https://educ.arte.tv/video/sido-colette', f: 'Vidéo', x: 'Documentaire et repères.', d: '2026-01-20' },
+ { t: 'Olympe de Gouges : écrire et combattre pour l\'égalité', s: 'pinel', u: 'https://podcasts.apple.com/fr/podcast/gouges-egalite', f: 'Podcast', x: 'Contexte historique et argumentation.', d: '2026-01-18' },
+ { t: 'La Peau de chagrin : dissertation création et destruction', s: 'amelie', u: 'https://www.youtube.com/watch?v=peau-chagrin-dissert', f: 'Vidéo', x: 'Plan dialectique et exemples rédigés.', d: '2026-01-15' },
+ { t: 'Le Chevalier de la charrette : le héros courtois', s: 'lumni', u: 'https://www.lumni.fr/video/charrette-heros', f: 'Vidéo', x: 'Analyse du personnage, voie technologique.', d: '2026-01-12' },
+ { t: "Juste la fin du monde : l'épanorthose chez Lagarce", s: 'comedie', u: 'https://www.comedie-francaise.fr/actualites/lagarce-epanorthose', f: 'Vidéo', x: 'Grammaire contemporaine et silences tragiques.', d: '2026-01-10' },
+ { t: 'Mes Forêts, Hélène Dorion : nature et science', s: 'franceculture', u: 'https://www.radiofrance.fr/franceculture/podcasts/dorion-forets', f: 'Podcast', x: 'Lecture expressive et parcours associé.', d: '2026-01-08' },
+ { t: 'La Boétie : servitude et liberté', s: 'magister', u: 'https://www.site-magister.com/boetie-servitude.htm', f: 'Texte', x: 'Problématisation et plan de dissertation.', d: '2026-01-05' },
+ { t: 'Manon Lescaut : résumé et personnages (audio)', s: 'hachette', u: 'https://www.enseignants.hachette-education.com/audio/manon-lescaut', f: 'Audio', x: 'Format court pour lecture cursive.', d: '2026-01-03' },
+ { t: "On ne badine pas avec l'amour : scène du lac", s: 'weblettres', u: 'https://www.weblettres.net/analyses/badine-lac', f: 'Texte', x: 'Version texte (doublon de contenu).', d: '2026-02-12' },
+ { t: 'Corneille, Le Menteur : mensonge et comédie', s: 'eduscol', u: 'https://eduscol.education.gouv.fr/analyses/menteur', f: 'Texte', x: 'Analyse institutionnelle de référence.', d: '2026-01-01' },
+ { t: 'Rimbaud, Cahiers de Douai : Ma Bohème', s: 'aurore', u: 'https://www.youtube.com/watch?v=rimbaud-ma-boheme', f: 'Vidéo', x: 'Mouvements du texte et question de grammaire.', d: '2025-12-28' }
 ];
-const LIENS=[
- [1,"Éduscol — Programmes et définition des épreuves EAF","https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt","valide",10,"Officiel"],
- [2,"Rapports de jury EAF (Lille)","https://pedagogie.ac-lille.fr/lettres/e-a-f-2025-rapport-du-jury/","valide",9.5,"Officiel"],
- [3,"Annales officielles EAF","https://eduscol.education.gouv.fr/5199/annales-des-epreuves-du-baccalaureat","valide",9.5,"Officiel"],
- [4,"La Compagnie des œuvres","https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres","valide",9.5,"Podcast"],
- [5,"Lumni — Lycée","https://www.lumni.fr/lycee","valide",9,"Vidéos"],
- [6,"Weblettres","https://www.weblettres.net/pedagogie/index2.php?rub=7","valide",9,"Portail"],
- [7,"Amélie Vioux","https://www.youtube.com/@AmelieVioux-Bacdefrancais","valide",9,"Vidéos"],
- [8,"L'École des lettres","https://www.ecoledeslettres.fr/","fiable",9,"Revue"],
- [9,"Dossiers BnF","https://classes.bnf.fr/","fiable",9,"Dossiers"],
- [10,"Classiques & Cie — Hatier","https://www.hatier.fr/","a_verifier",9,"Édition"],
- [11,"Le Livre Scolaire","https://www.lelivrescolaire.fr/","fiable",9,"Manuel"],
- [12,"CNED Académie en ligne","https://www.academieenligne.fr/","fiable",8.5,"Cours"],
- [13,"Kartable","https://www.kartable.fr/","fiable",8.5,"Plateforme"],
- [14,"Aurore Ponsonnet","https://www.youtube.com/results?search_query=Aurore+Ponsonnet","valide",8.5,"Vidéos"],
- [15,"Sites académiques Lettres","https://lettres.ac-versailles.fr/","fiable",8.5,"Séquences"],
- [16,"Arte — Spectacles","https://www.arte.tv/fr/videos/spectacles-et-concerts/","valide",8.5,"Captations"],
- [17,"Comédie-Française","https://www.comedie-francaise.fr/","fiable",8.5,"Captations"],
- [18,"Littérature audio.com","https://www.litteratureaudio.com/","fiable",8.5,"Audio"],
- [19,"Wikisource","https://fr.wikisource.org/","fiable",8.5,"Textes"],
- [20,"Gallica — BnF","https://gallica.bnf.fr/","fiable",8.5,"Archives"],
- [21,"Étonnants classiques — Flammarion","https://editions.flammarion.com/Catalogue/etonnants-classiques/lycee","valide",8,"Édition"],
- [22,"Quand je passe le bac","https://quandjepasselebac.education.gouv.fr/","fiable",8.5,"Officiel"],
- [23,"Les Bons Profs","https://www.lesbonsprofs.com/","fiable",8,"Vidéos"],
- [24,"SchoolMouv","https://www.schoolmouv.fr/","fiable",8,"Plateforme"],
- [25,"Annabac","https://www.annabac.com/","fiable",8,"Annales"],
- [26,"Réviser son bac (France Culture)","https://www.radiofrance.fr/sujets/bac-francais","valide",8,"Podcasts"],
- [27,"theatre-contemporain.net","https://theatre-contemporain.net/","fiable",8,"Théâtre"],
- [28,"Commentaire composé","https://www.commentairecompose.fr/","valide",8,"Analyses"],
- [29,"Collège de France","https://www.college-de-france.fr/","fiable",8,"Conférences"],
- [30,"Cercle Gallimard enseignement","https://www.cercle-enseignement.com/Lycee/Premiere-GT/Au-programme","valide",8,"Dossiers"],
- [31,"Printemps des Poètes","https://www.printempsdespoetes.com/","fiable",7.5,"Poésie"],
- [32,"Odéon-Théâtre de l'Europe","https://www.theatre-odeon.eu/","fiable",7.5,"Théâtre"],
- [33,"Festival d'Avignon","https://festival-avignon.com/","fiable",7.5,"Théâtre"],
- [34,"Ebooks libres et gratuits","https://www.ebooksgratuits.com/","fiable",7.5,"Textes"],
- [35,"Super-Bac — digiSchool","https://www.super-bac.com/","fiable",7,"Annales"],
- [36,"Nomad Education","https://www.nomad-education.com/","fiable",7,"Application"],
- [37,"L'Étudiant","https://www.letudiant.fr/","fiable",7,"Média"],
- [38,"Le Café pédagogique","https://www.cafepedagogique.net/","fiable",7,"Média"],
- [39,"Cairn.info","https://www.cairn.info/","fiable",7,"Articles"],
- [40,"CNRTL","https://www.cnrtl.fr/","fiable",7,"Outil"],
- [41,"Académie française","https://www.academie-francaise.fr/","fiable",7,"Outil"],
- [42,"INA.fr","https://www.ina.fr/","fiable",7,"Archives"],
- [43,"RetroNews","https://www.retronews.fr/","fiable",7,"Archives"],
- [44,"TNP Villeurbanne","https://www.tnp-villeurbanne.com/","fiable",7,"Théâtre"],
- [45,"Studyrama","https://www.studyrama.com/","fiable",6.5,"Fiches"],
- [46,"Le Masque et la Plume","https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume","fiable",6.5,"Émission"],
- [47,"Le Monde Campus","https://www.lemonde.fr/campus/","fiable",6.5,"Média"],
- [48,"Anki","https://apps.ankiweb.net/","fiable",6.5,"Outil"],
- [49,"Nota Bene","https://www.youtube.com/@NotaBene","fiable",6,"Vidéos"],
- [50,"Quizlet","https://quizlet.com/fr","fiable",6,"Outil"],
- [51,"FUN-MOOC","https://www.fun-mooc.fr/","fiable",6,"Cours"],
- [52,"TV5Monde — Apprendre","https://apprendre.tv5monde.com/","fiable",5.5,"Fiches"],
- [53,"Pièces démontées — Canopé","https://www.reseau-canope.fr/","a_verifier",8,"Dossiers"],
- [54,"NRP Lettres","https://www.nathan.fr/","a_verifier",8,"Revue"],
- [55,"Poésie/Gallimard","https://www.gallimard.fr/","a_verifier",7.5,"Édition"]
+
+const CAND_POOL = [
+ { id: 'c1', nom: 'Le Mock / Bulledop (BookTube)', feed: 'https://www.youtube.com/results?search_query=le+mock+bulledop', type: 'BookTube', score: 7.5, raison: 'Dépoussière le patrimoine via la pop culture.' },
+ { id: 'c2', nom: 'Médiaclasse (YouTube)', feed: 'https://www.youtube.com/results?search_query=mediaclasse', type: 'Vidéo pédagogique', score: 8, raison: 'Schématisations animées des figures de style.' },
+ { id: 'c3', nom: 'Études-littéraires.com', feed: 'https://www.etudes-litteraires.com/', type: 'Forum & fiches', score: 8.5, raison: 'Entraide interactive, critiques correctives.' },
+ { id: 'c4', nom: 'Projet Voltaire', feed: 'https://www.projet-voltaire.fr/', type: 'Remédiation langue', score: 8, raison: "Sécurise l'orthographe à l'écrit." },
+ { id: 'c5', nom: 'Barbey Pédagogie', feed: 'https://www.barbeypedagogie.fr/', type: 'Éducation médias', score: 8, raison: 'Structures journalistiques, argumentation.' }
+];
+
+const LIENS_SEED = [
+ [1, "Éduscol — Programmes et définition des épreuves EAF", "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt", "valide", 10, "Officiel"],
+ [2, "Rapports de jury EAF (Lille)", "https://pedagogie.ac-lille.fr/lettres/e-a-f-2025-rapport-du-jury/", "valide", 9.5, "Officiel"],
+ [3, "Annales officielles EAF", "https://eduscol.education.gouv.fr/5199/annales-des-epreuves-du-baccalaureat", "valide", 9.5, "Officiel"],
+ [4, "La Compagnie des œuvres", "https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres", "valide", 9.5, "Podcast"],
+ [5, "Lumni — Lycée", "https://www.lumni.fr/lycee", "valide", 9, "Vidéos"],
+ [6, "Weblettres", "https://www.weblettres.net/pedagogie/index2.php?rub=7", "valide", 9, "Portail"],
+ [7, "Amélie Vioux", "https://www.youtube.com/@AmelieVioux-Bacdefrancais", "valide", 9, "Vidéos"],
+ [8, "L'École des lettres", "https://www.ecoledeslettres.fr/", "fiable", 9, "Revue"],
+ [9, "Dossiers BnF", "https://classes.bnf.fr/", "fiable", 9, "Dossiers"],
+ [10, "Classiques & Cie — Hatier", "https://www.hatier.fr/", "a_verifier", 9, "Édition"],
+ [11, "Le Livre Scolaire", "https://www.lelivrescolaire.fr/", "fiable", 9, "Manuel"],
+ [12, "CNED Académie en ligne", "https://www.academieenligne.fr/", "fiable", 8.5, "Cours"],
+ [13, "Kartable", "https://www.kartable.fr/", "fiable", 8.5, "Plateforme"],
+ [14, "Aurore Ponsonnet", "https://www.youtube.com/results?search_query=Aurore+Ponsonnet", "valide", 8.5, "Vidéos"],
+ [15, "Sites académiques Lettres", "https://lettres.ac-versailles.fr/", "fiable", 8.5, "Séquences"],
+ [16, "Arte — Spectacles", "https://www.arte.tv/fr/videos/spectacles-et-concerts/", "valide", 8.5, "Captations"],
+ [17, "Comédie-Française", "https://www.comedie-francaise.fr/", "fiable", 8.5, "Captations"],
+ [18, "Littérature audio.com", "https://www.litteratureaudio.com/", "fiable", 8.5, "Audio"],
+ [19, "Wikisource", "https://fr.wikisource.org/", "fiable", 8.5, "Textes"],
+ [20, "Gallica — BnF", "https://gallica.bnf.fr/", "fiable", 8.5, "Archives"]
 ];
 
 /* ---------- 3. ÉTAT ---------- */
-function seed(){
+function seed() {
   return {
-    version:3,cree:nowISO(),role:"admin",
-    settings:{freq:30,actif:false,nextRun:null,autoCollect:true,autoLinks:true,testMode:true,currentProgram:"2025-2026",nextProgram:"2026-2027",lastDigest:null},
-    liens:LIENS.map(([r,t,u,st,sc,ty])=>({id:"L"+r,rang:r,titre:t,url:u,statut:st,score:sc,type:ty,dernier:null,hist:[]})),
-    inbox:[],fingerprints:{},collectes:[],watch:[],candidats:[],rapports:[],
-    audit:[{ts:nowISO(),user:"système",action:"Initialisation",details:"Base v3 créée (collecte réelle intégrée)."}],
-    log:[]
+    version: 3, cree: nowISO(), role: 'admin',
+    settings: { freq: 30, actif: false, nextRun: null, autoCollect: true, autoLinks: true,
+                testMode: true, currentProgram: '2025-2026', nextProgram: '2026-2027', lastDigest: null },
+    liens: LIENS_SEED.map(([r, t, u, st, sc, ty]) =>
+      ({ id: 'L' + r, rang: r, titre: t, url: u, statut: st, score: sc, type: ty, dernier: null, hist: [] })),
+    inbox: [], fingerprints: {}, collectes: [], watch: [], candidats: [], rapports: [],
+    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation',
+              details: 'Base v4 créée (Supabase + collecte réelle).' }],
+    log: []
   };
 }
-let DB=null;
-function load(){ const saved=Storage.read(); if(saved&&saved.version===3){DB=saved;} else {DB=seed();save();} }
-function save(){ Storage.write(DB); updateStorageTag(); }
-function updateStorageTag(){ const el=$("#storageTag"); if(!el)return; el.textContent=Storage.persistent?"💾 localStorage actif":"⚠️ stockage en mémoire (non persistant)"; el.className="storage-tag"+(Storage.persistent?"":" mem"); }
+
+let DB = null;
+function save() { Storage.write(DB); updateStorageTag(); }
+function updateStorageTag() {
+  const el = $('#storageTag'); if (!el) return;
+  if (Storage.backend === 'supabase') {
+    el.textContent = '💾 Supabase actif';
+    el.className = 'storage-tag';
+  } else if (Storage.backend === 'memory') {
+    el.textContent = '⚠️ Mode mémoire (Supabase indisponible)';
+    el.className = 'storage-tag mem';
+  } else {
+    el.textContent = '❌ Erreur de stockage';
+    el.className = 'storage-tag err';
+  }
+}
 
 /* ---------- 4. RÔLES & AUDIT ---------- */
-const PERMS={
- admin:["collect","linkcheck","review","validate","publish","reject","restore","approve","watch","digest","rapport","export","import","reset"],
- editeur:["collect","linkcheck","review","validate","publish","reject","restore","approve","watch","digest","rapport","export"],
- relecteur:["collect","linkcheck","review","reject","rapport","digest"],
- lecture:["rapport","export"]
+const PERMS = {
+ admin: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export','import','reset'],
+ editeur: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export'],
+ relecteur: ['collect','linkcheck','review','reject','rapport','digest'],
+ lecture: ['rapport','export']
 };
-const roleName={admin:"Administrateur",editeur:"Éditeur",relecteur:"Relecteur",lecture:"Lecture seule"};
-const can=a=>!!(PERMS[DB.role]&&PERMS[DB.role].indexOf(a)>=0);
-function audit(action,details){ DB.audit.push({ts:nowISO(),user:roleName[DB.role],action,details}); save(); }
-function log(msg,cls){ DB.log.unshift({ts:nowISO(),msg,cls:cls||"info"}); if(DB.log.length>80)DB.log.pop(); save(); }
+const roleName = { admin: 'Administrateur', editeur: 'Éditeur', relecteur: 'Relecteur', lecture: 'Lecture seule' };
+const can = a => !!(PERMS[DB.role] && PERMS[DB.role].indexOf(a) >= 0);
+function audit(action, details) { DB.audit.push({ ts: nowISO(), user: roleName[DB.role], action, details }); save(); }
+function log(msg, cls) { DB.log.unshift({ ts: nowISO(), msg, cls: cls || 'info' }); if (DB.log.length > 120) DB.log.pop(); save(); }
 let toastT;
-function toast(msg,kind){ const t=$("#toast"); t.textContent=msg; t.className="toast show "+(kind||""); clearTimeout(toastT); toastT=setTimeout(()=>t.className="toast",3200); }
+function toast(msg, kind) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast show ' + (kind || '');
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', 3200);
+}
 
 /* ---------- 5. COLLECTE / ÉTIQUETAGE / DÉDOUBLONNAGE / SCORE ---------- */
-function normFP(url,titre,src){ const u=(url||"").toLowerCase().replace(/^https?:\/\//,"").replace(/^www\./,"").replace(/\/+$/,"").replace(/[?#].*$/,""); return u||((titre||"")+"|"+(src||"")).toLowerCase(); }
-function detectExercice(txt){ const t=(txt||"").toLowerCase(); if(/lecture lin|explication lin/.test(t))return"Explication linéaire"; if(/dissertation/.test(t))return"Dissertation"; if(/contraction/.test(t))return"Contraction (Techno)"; if(/essai/.test(t))return"Essai (Techno)"; return"Analyse"; }
-function matchOeuvres(c){ const hay=((c.t||"")+" "+(c.x||"")).toLowerCase(); return OEUVRES.filter(o=>o.kw.some(k=>hay.indexOf(k)>=0)).map(o=>o.id); }
-const oeuvreActive=id=>{ const o=OEUVRES.find(x=>x.id===id); return o&&o.statut!=="Sortante (renouvellement)"; };
-function composite(it){ const days=(Date.now()-new Date(it.date).getTime())/86400000; const frais=days<30?10:days<90?8:days<180?6:days<365?4:2; const sig=SOURCES.find(s=>s.id===it.source)?9:6; const align=it.oeuvreIds.length?(it.oeuvreIds.some(oeuvreActive)?10:5):3; return Math.round((frais*.3+8*.2+sig*.2+align*.2+8*.1)*10)/10; }
-
-/* ============================================================
-   ★ MODIFICATION C — runCollect scindé :
-   - ingestCandidate : intègre un candidat (réel ou simulé)
-   - runCollectSimulee : ancienne logique basée sur POOL
-   - runCollect : réel (via /api/collect) ou simulé selon testMode
-   ============================================================ */
-function ingestCandidate(c, sourceId, run){
-  const fp=normFP(c.url,c.titre,sourceId);
-  if(DB.fingerprints[fp]){run.doublons++;return;}
-  const oeuvreIds=matchOeuvres({t:c.titre,x:c.desc||""});
-  DB.fingerprints[fp]=true;
-  const it={id:uid(),ts:nowISO(),titre:c.titre,source:sourceId,url:c.url,format:c.format||"Flux",
-    desc:(c.desc||"").slice(0,160),date:(c.date||nowISO()).slice(0,10),
-    exercice:detectExercice(c.titre+" "+(c.desc||"")),oeuvreIds,
-    objets:[...new Set(oeuvreIds.map(id=>OEUVRES.find(o=>o.id===id).objet))],
-    voies:[...new Set(oeuvreIds.map(id=>OEUVRES.find(o=>o.id===id).voie))],
-    statut:"candidate",runId:run.id,obsolete:false,hist:[]};
-  it.score=composite(it);
-  DB.inbox.push(it); run.nouveaux++; if(!oeuvreIds.length)run.nonIdentifies++;
+function normFP(url, titre, src) {
+  const u = (url || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').replace(/[?#].*$/, '');
+  return u || ((titre || '') + '|' + (src || '')).toLowerCase();
+}
+function detectExercice(txt) {
+  const t = (txt || '').toLowerCase();
+  if (/lecture lin|explication lin/.test(t)) return 'Explication linéaire';
+  if (/dissertation/.test(t)) return 'Dissertation';
+  if (/contraction/.test(t)) return 'Contraction (Techno)';
+  if (/essai/.test(t)) return 'Essai (Techno)';
+  return 'Analyse';
+}
+function matchOeuvres(c) {
+  const hay = ((c.t || c.titre || '') + ' ' + (c.x || c.desc || '')).toLowerCase();
+  return OEUVRES.filter(o => o.kw.some(k => hay.indexOf(k) >= 0)).map(o => o.id);
+}
+const oeuvreActive = id => {
+  const o = OEUVRES.find(x => x.id === id);
+  return o && o.statut !== 'Sortante (renouvellement)';
+};
+function composite(it) {
+  const days = (Date.now() - new Date(it.date).getTime()) / 86400000;
+  const frais = days < 30 ? 10 : days < 90 ? 8 : days < 180 ? 6 : days < 365 ? 4 : 2;
+  const sig = SOURCES.find(s => s.id === it.source) ? 9 : 6;
+  const align = it.oeuvreIds.length ? (it.oeuvreIds.some(oeuvreActive) ? 10 : 5) : 3;
+  return Math.round((frais * 0.3 + 8 * 0.2 + sig * 0.2 + align * 0.2 + 8 * 0.1) * 10) / 10;
 }
 
-function runCollectSimulee(trigger){
-  const run={id:uid(),ts:nowISO(),trigger,items:POOL.length,nouveaux:0,doublons:0,nonIdentifies:0};
-  POOL.forEach(c=>{ ingestCandidate({titre:c.t,url:c.u,desc:c.x,date:c.d,format:c.f},c.s,run); });
+function ingestCandidate(c, sourceId, run) {
+  const fp = normFP(c.url, c.titre, sourceId);
+  if (DB.fingerprints[fp]) { run.doublons++; return; }
+  const oeuvreIds = matchOeuvres({ t: c.titre, x: c.desc || '' });
+  DB.fingerprints[fp] = true;
+  const it = {
+    id: uid(), ts: nowISO(), titre: c.titre, source: sourceId, url: c.url,
+    format: c.format || 'Flux', desc: (c.desc || '').slice(0, 160),
+    date: (c.date || nowISO()).slice(0, 10),
+    exercice: detectExercice(c.titre + ' ' + (c.desc || '')), oeuvreIds,
+    objets: [...new Set(oeuvreIds.map(id => OEUVRES.find(o => o.id === id).objet))],
+    voies: [...new Set(oeuvreIds.map(id => OEUVRES.find(o => o.id === id).voie))],
+    statut: 'candidate', runId: run.id, obsolete: false, hist: []
+  };
+  it.score = composite(it);
+  DB.inbox.push(it);
+  run.nouveaux++;
+  if (!oeuvreIds.length) run.nonIdentifies++;
+}
+
+function runCollectSimulee(trigger) {
+  const run = { id: uid(), ts: nowISO(), trigger, items: POOL.length, nouveaux: 0, doublons: 0, nonIdentifies: 0 };
+  POOL.forEach(c => { ingestCandidate({ titre: c.t, url: c.u, desc: c.x, date: c.d, format: c.f }, c.s, run); });
   DB.collectes.unshift(run);
-  audit("Collecte simulée ("+trigger+")",run.nouveaux+" nouveaux, "+run.doublons+" doublons, "+run.nonIdentifies+" non identifiés.");
-  log("Collecte simulée : "+run.nouveaux+" nouveaux / "+run.doublons+" doublons.",run.doublons>0?"warn":"ok");
-  toast("Collecte simulée : "+run.nouveaux+" nouveaux, "+run.doublons+" doublons écartés.","ok");
-  save();refreshCounts();render();
+  audit('Collecte simulée (' + trigger + ')', run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons.');
+  log('Collecte simulée : ' + run.nouveaux + ' nouveaux / ' + run.doublons + ' doublons.', run.doublons > 0 ? 'warn' : 'ok');
+  toast('Collecte simulée : ' + run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons écartés.', 'ok');
+  save(); refreshCounts(); render();
 }
 
-async function runCollect(trigger){
-  if(!can("collect")){toast("Rôle insuffisant pour lancer une collecte.","err");return;}
-  if(DB.settings.testMode){ return runCollectSimulee(trigger); }
-  /* MODE RÉEL : interroge chaque flux via la fonction serveur Vercel */
-  const run={id:uid(),ts:nowISO(),trigger,items:0,nouveaux:0,doublons:0,nonIdentifies:0};
-  let feedsOk=0, feedsKo=0;
-  for(const src of REAL_FEEDS){
-    try{
-      const resp=await fetch("/api/collect?feed="+encodeURIComponent(src.feed));
-      const data=await resp.json();
-      if(data.error||!data.items){ feedsKo++; log("Flux en échec : "+src.nom+" ("+(data.error||"vide")+")","warn"); continue; }
-      feedsOk++; run.items+=data.items.length;
-      data.items.forEach(it=>ingestCandidate({titre:it.titre,url:it.url,desc:it.desc,date:it.date},src.id,run));
-    }catch(e){ feedsKo++; log("Erreur réseau sur le flux : "+src.nom,"err"); }
+async function runCollect(trigger) {
+  if (!can('collect')) { toast('Rôle insuffisant pour lancer une collecte.', 'err'); return; }
+  if (DB.settings.testMode) return runCollectSimulee(trigger);
+
+  const run = { id: uid(), ts: nowISO(), trigger, items: 0, nouveaux: 0, doublons: 0, nonIdentifies: 0 };
+  let feedsOk = 0, feedsKo = 0;
+  for (const src of REAL_FEEDS) {
+    try {
+      const resp = await fetch('/api/collect?feed=' + encodeURIComponent(src.feed));
+      const data = await resp.json();
+      if (data.error || !data.items) {
+        feedsKo++;
+        log('Flux en échec : ' + src.nom + ' (' + (data.error || 'vide') + ')', 'warn');
+        continue;
+      }
+      feedsOk++;
+      run.items += data.items.length;
+      data.items.forEach(it => ingestCandidate({
+        titre: it.titre, url: it.url, desc: it.desc, date: it.date
+      }, src.id, run));
+    } catch (e) {
+      feedsKo++;
+      log('Erreur réseau sur le flux : ' + src.nom + ' (' + e.message + ')', 'err');
+    }
   }
   DB.collectes.unshift(run);
-  audit("Collecte RÉELLE ("+trigger+")",run.nouveaux+" nouveaux, "+run.doublons+" doublons, "+feedsOk+" flux OK, "+feedsKo+" échecs.");
-  log("Collecte réelle : "+feedsOk+" flux OK, "+feedsKo+" en échec, "+run.nouveaux+" nouveaux candidats.",feedsKo>0?"warn":"ok");
-  toast("Collecte réelle : "+run.nouveaux+" nouveaux ("+feedsOk+" flux OK).",feedsKo>0?"err":"ok");
-  save();refreshCounts();render();
+  audit('Collecte RÉELLE (' + trigger + ')',
+    run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons, ' + feedsOk + ' flux OK, ' + feedsKo + ' échecs.');
+  log('Collecte réelle : ' + feedsOk + ' flux OK, ' + feedsKo + ' en échec, ' + run.nouveaux + ' nouveaux candidats.', feedsKo > 0 ? 'warn' : 'ok');
+  toast('Collecte réelle : ' + run.nouveaux + ' nouveaux (' + feedsOk + ' flux OK).', feedsKo > 0 ? 'err' : 'ok');
+  save(); refreshCounts(); render();
 }
 
-/* ============================================================
-   ★ MODIFICATION B — checkLink via /api/check-link en mode réel
-   ============================================================ */
-let linkBusy=false;
-async function checkLink(l){
-  let res, detail=null;
-  if(DB.settings.testMode){
-    await new Promise(r=>setTimeout(r,60+Math.random()*140));
-    res=Math.random()<0.85?"responds":"error";
+/* ---------- 6. CONTRÔLE DES LIENS (réel ou simulé) ---------- */
+let linkBusy = false;
+async function checkLink(l) {
+  let res, detail = null;
+  if (DB.settings.testMode) {
+    await new Promise(r => setTimeout(r, 60 + Math.random() * 140));
+    res = Math.random() < 0.85 ? 'responds' : 'error';
   } else {
-    try{
-      const resp=await fetch("/api/check-link?url="+encodeURIComponent(l.url));
-      const d=await resp.json();
-      res=d.ok?"responds":"error";
-      detail=d; // { status, finalUrl, redirected }
-    }catch(e){ res="error"; }
+    try {
+      const resp = await fetch('/api/check-link?url=' + encodeURIComponent(l.url));
+      const d = await resp.json();
+      res = d.ok ? 'responds' : 'error';
+      detail = d;
+    } catch (e) { res = 'error'; }
   }
-  l.dernier={ts:nowISO(),res,detail};
-  l.hist.unshift({ts:nowISO(),res}); if(l.hist.length>8)l.hist.pop();
+  l.dernier = { ts: nowISO(), res, detail };
+  l.hist.unshift({ ts: nowISO(), res });
+  if (l.hist.length > 8) l.hist.pop();
   return res;
 }
-async function runLinkCheck(batch){
-  batch=batch||12;
-  if(linkBusy){toast("Une vérification est déjà en cours.","err");return;}
-  if(!can("linkcheck")){toast("Rôle insuffisant pour vérifier les liens.","err");return;}
-  linkBusy=true;
-  const todo=[...DB.liens].sort((a,b)=>{ const pa=a.statut==="a_verifier"?0:1,pb=b.statut==="a_verifier"?0:1; if(pa!==pb)return pa-pb; return (a.dernier?1:0)-(b.dernier?1:0); }).slice(0,batch);
-  log("Vérification "+(DB.settings.testMode?"simulée":"réelle")+" d'un lot de "+todo.length+" liens…","info");
-  let ok=0,ko=0;
-  for(const l of todo){ const r=await checkLink(l); if(r==="responds")ok++;else ko++; if(currentView==="liens")renderLiensTable(); await new Promise(r2=>setTimeout(r2,50)); }
-  linkBusy=false; save();
-  audit("Contrôle des liens","Lot de "+todo.length+" : "+ok+" OK, "+ko+" en erreur ("+(DB.settings.testMode?"simulation":"réel")+").");
-  log("Contrôle terminé : "+ok+" OK, "+ko+" en erreur.",ko>0?"warn":"ok");
-  toast("Vérification : "+ok+" répondent, "+ko+" en erreur.",ko>0?"err":"ok");
-  refreshCounts();render();
+async function runLinkCheck(batch) {
+  batch = batch || 12;
+  if (linkBusy) { toast('Une vérification est déjà en cours.', 'err'); return; }
+  if (!can('linkcheck')) { toast('Rôle insuffisant pour vérifier les liens.', 'err'); return; }
+  linkBusy = true;
+  const todo = [...DB.liens].sort((a, b) => {
+    const pa = a.statut === 'a_verifier' ? 0 : 1, pb = b.statut === 'a_verifier' ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return (a.dernier ? 1 : 0) - (b.dernier ? 1 : 0);
+  }).slice(0, batch);
+  log('Vérification ' + (DB.settings.testMode ? 'simulée' : 'réelle') + ' d\'un lot de ' + todo.length + ' liens…', 'info');
+  let ok = 0, ko = 0;
+  for (const l of todo) {
+    const r = await checkLink(l);
+    if (r === 'responds') ok++; else ko++;
+    if (currentView === 'liens') renderLiensTable();
+    await new Promise(r2 => setTimeout(r2, 50));
+  }
+  linkBusy = false;
+  save();
+  audit('Contrôle des liens', 'Lot de ' + todo.length + ' : ' + ok + ' OK, ' + ko + ' en erreur (' + (DB.settings.testMode ? 'simulation' : 'réel') + ').');
+  log('Contrôle terminé : ' + ok + ' OK, ' + ko + ' en erreur.', ko > 0 ? 'warn' : 'ok');
+  toast('Vérification : ' + ok + ' répondent, ' + ko + ' en erreur.', ko > 0 ? 'err' : 'ok');
+  refreshCounts(); render();
 }
 
-/* ---------- 7. VEILLE BO + PÉREMPTION ---------- */
-function watchBO(){
-  if(!can("watch")){toast("Rôle insuffisant pour la veille BO.","err");return;}
-  const actives=OEUVRES.filter(o=>o.statut==="Au programme");
-  if(!actives.length){toast("Aucune œuvre active à renouveler.","err");return;}
-  const victim=actives[Math.floor(Math.random()*actives.length)];
-  victim.statut="Sortante (renouvellement)";
-  const oldP=DB.settings.currentProgram; DB.settings.currentProgram=DB.settings.nextProgram;
-  const parts=DB.settings.nextProgram.split("-"); DB.settings.nextProgram=(parseInt(parts[0],10)+1)+"-"+(parseInt(parts[1],10)+1);
-  DB.watch.unshift({ts:nowISO(),type:"BO",message:"Publication détectée : programme "+DB.settings.currentProgram+". « "+victim.titre+" » ("+victim.auteur+") sort du programme."});
-  let flagged=0; DB.inbox.forEach(it=>{ if(it.oeuvreIds.indexOf(victim.id)>=0){it.obsolete=true;flagged++;} });
-  audit("Veille BO","Programme "+oldP+" → "+DB.settings.currentProgram+". "+flagged+" analyse(s) à revalider.");
-  log("⚑ Veille BO : "+DB.settings.currentProgram+" détecté. "+flagged+" analyses obsolètes.","warn");
-  toast("Veille BO : « "+victim.titre+" » sortante. "+flagged+" analyse(s) à revalider.","ok");
-  save();refreshCounts();render();
+/* ---------- 7. VEILLE BO ---------- */
+function watchBO() {
+  if (!can('watch')) { toast('Rôle insuffisant pour la veille BO.', 'err'); return; }
+  const actives = OEUVRES.filter(o => o.statut === 'Au programme');
+  if (!actives.length) { toast('Aucune œuvre active à renouveler.', 'err'); return; }
+  const victim = actives[Math.floor(Math.random() * actives.length)];
+  victim.statut = 'Sortante (renouvellement)';
+  const oldP = DB.settings.currentProgram;
+  DB.settings.currentProgram = DB.settings.nextProgram;
+  const parts = DB.settings.nextProgram.split('-');
+  DB.settings.nextProgram = (parseInt(parts[0], 10) + 1) + '-' + (parseInt(parts[1], 10) + 1);
+  DB.watch.unshift({ ts: nowISO(), type: 'BO', message: 'Publication détectée : programme ' + DB.settings.currentProgram + '. « ' + victim.titre + ' » (' + victim.auteur + ') sort du programme.' });
+  let flagged = 0;
+  DB.inbox.forEach(it => { if (it.oeuvreIds.indexOf(victim.id) >= 0) { it.obsolete = true; flagged++; } });
+  audit('Veille BO', 'Programme ' + oldP + ' → ' + DB.settings.currentProgram + '. ' + flagged + ' analyse(s) à revalider.');
+  log('⚑ Veille BO : ' + DB.settings.currentProgram + ' détecté. ' + flagged + ' analyses obsolètes.', 'warn');
+  toast('Veille BO : « ' + victim.titre + ' » sortante. ' + flagged + ' analyse(s) à revalider.', 'ok');
+  save(); refreshCounts(); render();
 }
 
 /* ---------- 8. SOURCES CANDIDATES ---------- */
-function detectSources(){
-  if(!can("approve")){toast("Rôle insuffisant.","err");return;}
-  const known=new Set(DB.candidats.map(c=>c.id));
-  const pick=CAND_POOL.filter(c=>!known.has(c.id)).slice(0,2);
-  if(!pick.length){toast("Toutes les sources candidates connues sont déjà dans la file.","err");return;}
-  pick.forEach(c=>DB.candidats.push(Object.assign({},c,{ts:nowISO(),statut:"pendant"})));
-  audit("Détection de sources",pick.length+" source(s) candidate(s) ajoutée(s).");
-  toast(pick.length+" source(s) candidate(s) détectée(s).","ok");
-  save();refreshCounts();render();
+function detectSources() {
+  if (!can('approve')) { toast('Rôle insuffisant.', 'err'); return; }
+  const known = new Set(DB.candidats.map(c => c.id));
+  const pick = CAND_POOL.filter(c => !known.has(c.id)).slice(0, 2);
+  if (!pick.length) { toast('Toutes les sources candidates connues sont déjà dans la file.', 'err'); return; }
+  pick.forEach(c => DB.candidats.push(Object.assign({}, c, { ts: nowISO(), statut: 'pendant' })));
+  audit('Détection de sources', pick.length + ' source(s) candidate(s) ajoutée(s).');
+  toast(pick.length + ' source(s) candidate(s) détectée(s).', 'ok');
+  save(); refreshCounts(); render();
 }
-function approveSource(id,ok){
-  if(!can("approve")){toast("Rôle insuffisant.","err");return;}
-  const c=DB.candidats.find(x=>x.id===id); if(!c)return;
-  if(ok){ if(!SOURCES.find(s=>s.id===c.id))SOURCES.push({id:c.id,nom:c.nom,feed:c.feed,actif:true}); c.statut="approuvee"; audit("Source approuvée","« "+c.nom+" » intégrée aux flux."); toast("« "+c.nom+" » approuvée.","ok"); }
-  else{ c.statut="refusee"; audit("Source refusée","« "+c.nom+" » écartée."); toast("« "+c.nom+" » refusée."); }
-  save();refreshCounts();render();
+function approveSource(id, ok) {
+  if (!can('approve')) { toast('Rôle insuffisant.', 'err'); return; }
+  const c = DB.candidats.find(x => x.id === id); if (!c) return;
+  if (ok) {
+    if (!SOURCES.find(s => s.id === c.id)) SOURCES.push({ id: c.id, nom: c.nom, feed: c.feed, actif: true });
+    c.statut = 'approuvee';
+    audit('Source approuvée', '« ' + c.nom + ' » intégrée aux flux.');
+    toast('« ' + c.nom + ' » approuvée.', 'ok');
+  } else {
+    c.statut = 'refusee';
+    audit('Source refusée', '« ' + c.nom + ' » écartée.');
+    toast('« ' + c.nom + ' » refusée.');
+  }
+  save(); refreshCounts(); render();
 }
 
-/* ---------- 9. WORKFLOW ÉDITORIAL ---------- */
-const TRANSITIONS={
- candidate:[{to:"en_revue",label:"→ En revue",perm:"review",cls:"btn--ink"},{to:"rejetee",label:"✕ Rejeter",perm:"reject",cls:"btn--ghost"},{to:"dupliquee",label:"⧉ Doublon",perm:"review",cls:"btn--ghost"}],
- en_revue:[{to:"validee",label:"✓ Valider",perm:"validate",cls:"btn--green"},{to:"rejetee",label:"✕ Rejeter",perm:"reject",cls:"btn--ghost"}],
- validee:[{to:"publiee",label:"🚀 Publier",perm:"publish",cls:"btn--red"},{to:"rejetee",label:"✕ Rejeter",perm:"reject",cls:"btn--ghost"}],
- publiee:[{to:"validee",label:"↩ Dépublier",perm:"publish",cls:"btn--ghost"},{to:"rejetee",label:"✕ Retirer",perm:"reject",cls:"btn--ghost"}],
- rejetee:[{to:"candidate",label:"⟲ Restaurer",perm:"restore",cls:"btn--ghost"}],
- dupliquee:[{to:"candidate",label:"⟲ Restaurer",perm:"restore",cls:"btn--ghost"}]
+/* ---------- 9. WORKFLOW ---------- */
+const TRANSITIONS = {
+  candidate: [
+    { to: 'en_revue', label: '→ En revue', perm: 'review', cls: 'btn--ink' },
+    { to: 'rejetee', label: '✕ Rejeter', perm: 'reject', cls: 'btn--ghost' },
+    { to: 'dupliquee', label: '⧉ Doublon', perm: 'review', cls: 'btn--ghost' }
+  ],
+  en_revue: [
+    { to: 'validee', label: '✓ Valider', perm: 'validate', cls: 'btn--green' },
+    { to: 'rejetee', label: '✕ Rejeter', perm: 'reject', cls: 'btn--ghost' }
+  ],
+  validee: [
+    { to: 'publiee', label: '🚀 Publier', perm: 'publish', cls: 'btn--red' },
+    { to: 'rejetee', label: '✕ Rejeter', perm: 'reject', cls: 'btn--ghost' }
+  ],
+  publiee: [
+    { to: 'validee', label: '↩ Dépublier', perm: 'publish', cls: 'btn--ghost' },
+    { to: 'rejetee', label: '✕ Retirer', perm: 'reject', cls: 'btn--ghost' }
+  ],
+  rejetee:  [{ to: 'candidate', label: '⟲ Restaurer', perm: 'restore', cls: 'btn--ghost' }],
+  dupliquee:[{ to: 'candidate', label: '⟲ Restaurer', perm: 'restore', cls: 'btn--ghost' }]
 };
-const STATUT_LABEL={candidate:"Candidate",en_revue:"En revue",validee:"Validée",publiee:"Publiée",rejetee:"Rejetée",dupliquee:"Doublon"};
-const STATUT_BADGE={candidate:"b-gold",en_revue:"b-teal",validee:"b-green",publiee:"b-ink",rejetee:"b-grey",dupliquee:"b-grey"};
-function moveItem(id,to){
-  const it=DB.inbox.find(x=>x.id===id); if(!it)return;
-  const tr=(TRANSITIONS[it.statut]||[]).find(t=>t.to===to); if(!tr)return;
-  if(!can(tr.perm)){toast("Rôle insuffisant pour « "+tr.label+" ».","err");return;}
-  const from=it.statut; it.statut=to; it.hist.push({ts:nowISO(),from,to,user:roleName[DB.role]});
-  audit("Workflow","« "+it.titre+" » : "+STATUT_LABEL[from]+" → "+STATUT_LABEL[to]+".");
-  save();toast("« "+it.titre+" » → "+STATUT_LABEL[to]+".","ok");render();
+const STATUT_LABEL = { candidate: 'Candidate', en_revue: 'En revue', validee: 'Validée', publiee: 'Publiée', rejetee: 'Rejetée', dupliquee: 'Doublon' };
+const STATUT_BADGE = { candidate: 'b-gold', en_revue: 'b-teal', validee: 'b-green', publiee: 'b-ink', rejetee: 'b-grey', dupliquee: 'b-grey' };
+function moveItem(id, to) {
+  const it = DB.inbox.find(x => x.id === id); if (!it) return;
+  const tr = (TRANSITIONS[it.statut] || []).find(t => t.to === to); if (!tr) return;
+  if (!can(tr.perm)) { toast('Rôle insuffisant pour « ' + tr.label + ' ».', 'err'); return; }
+  const from = it.statut; it.statut = to;
+  it.hist.push({ ts: nowISO(), from, to, user: roleName[DB.role] });
+  audit('Workflow', '« ' + it.titre + ' » : ' + STATUT_LABEL[from] + ' → ' + STATUT_LABEL[to] + '.');
+  save(); toast('« ' + it.titre + ' » → ' + STATUT_LABEL[to] + '.', 'ok'); render();
 }
 
 /* ---------- 10. PLANIFICATEUR ---------- */
-let schedTimer=null,countTimer=null;
-async function scheduledTick(){
-  log("⏰ Exécution planifiée (intervalle "+DB.settings.freq+" min).","info");
-  if(DB.settings.autoCollect)await runCollect("programmée");
-  if(DB.settings.autoLinks)await runLinkCheck(12);
-  DB.settings.nextRun=Date.now()+DB.settings.freq*60000; save(); updateSchedUI();
+let schedTimer = null, countTimer = null;
+async function scheduledTick() {
+  log('⏰ Exécution planifiée (intervalle ' + DB.settings.freq + ' min).', 'info');
+  if (DB.settings.autoCollect) await runCollect('programmée');
+  if (DB.settings.autoLinks) await runLinkCheck(12);
+  DB.settings.nextRun = Date.now() + DB.settings.freq * 60000;
+  save(); updateSchedUI();
 }
-function startSched(){
-  stopSched(); DB.settings.actif=true; DB.settings.nextRun=Date.now()+DB.settings.freq*60000;
-  schedTimer=setInterval(scheduledTick,DB.settings.freq*60000); countTimer=setInterval(updateSchedUI,1000);
-  audit("Planificateur","Activé ("+DB.settings.freq+" min)."); log("Planificateur activé ("+DB.settings.freq+" min).","ok");
-  save();updateSchedUI();toast("Planificateur activé.","ok");
+function startSched() {
+  stopSched();
+  DB.settings.actif = true;
+  DB.settings.nextRun = Date.now() + DB.settings.freq * 60000;
+  schedTimer = setInterval(scheduledTick, DB.settings.freq * 60000);
+  countTimer = setInterval(updateSchedUI, 1000);
+  audit('Planificateur', 'Activé (' + DB.settings.freq + ' min).');
+  log('Planificateur activé (' + DB.settings.freq + ' min).', 'ok');
+  save(); updateSchedUI(); toast('Planificateur activé.', 'ok');
 }
-function stopSched(){ if(schedTimer)clearInterval(schedTimer); if(countTimer)clearInterval(countTimer); schedTimer=null;countTimer=null; DB.settings.actif=false; DB.settings.nextRun=null; save();updateSchedUI(); }
-function updateSchedUI(){
-  const mini=$("#schedMini"); if(!mini)return;
-  if(DB.settings.actif&&DB.settings.nextRun){
-    const s=Math.max(0,Math.floor((DB.settings.nextRun-Date.now())/1000));
-    const m=String(Math.floor(s/60)).padStart(2,"0"),ss=String(s%60).padStart(2,"0");
-    mini.innerHTML="Planificateur : <b>actif</b> · prochaine exéc. <b>"+m+":"+ss+"</b>";
-    const cd=$("#countdown"); if(cd)cd.textContent="Prochaine exécution automatique dans "+m+":"+ss;
+function stopSched() {
+  if (schedTimer) clearInterval(schedTimer);
+  if (countTimer) clearInterval(countTimer);
+  schedTimer = null; countTimer = null;
+  DB.settings.actif = false; DB.settings.nextRun = null;
+  save(); updateSchedUI();
+}
+function updateSchedUI() {
+  const mini = $('#schedMini'); if (!mini) return;
+  if (DB.settings.actif && DB.settings.nextRun) {
+    const s = Math.max(0, Math.floor((DB.settings.nextRun - Date.now()) / 1000));
+    const m = String(Math.floor(s / 60)).padStart(2, '0'), ss = String(s % 60).padStart(2, '0');
+    mini.innerHTML = 'Planificateur : <b>actif</b> · prochaine exéc. <b>' + m + ':' + ss + '</b>';
+    const cd = $('#countdown'); if (cd) cd.textContent = 'Prochaine exécution automatique dans ' + m + ':' + ss;
   } else {
-    mini.innerHTML="Planificateur : <b>arrêté</b>";
-    const cd=$("#countdown"); if(cd)cd.textContent="Planificateur arrêté.";
+    mini.innerHTML = 'Planificateur : <b>arrêté</b>';
+    const cd = $('#countdown'); if (cd) cd.textContent = 'Planificateur arrêté.';
   }
 }
 
-/* ---------- 11. DIGEST (utilisé aussi par le diagnostic) ---------- */
-function buildDigest(){
-  const pubs=DB.inbox.filter(i=>i.statut==="publiee");
-  let md="# Digest EAF — "+new Date().toLocaleDateString("fr-FR")+"\n\nProgramme : "+DB.settings.currentProgram+" · "+pubs.length+" analyses publiées.\n\n";
-  OEUVRES.forEach(o=>{ const items=pubs.filter(i=>i.oeuvreIds.indexOf(o.id)>=0); if(items.length){ md+="## "+o.titre+" ("+o.auteur+") — "+OBJETS[o.objet].l+", voie "+o.voie+"\n"; items.forEach(i=>{md+="- ["+i.titre+"]("+i.url+") · "+i.format+" · "+i.exercice+" · via "+i.source+"\n";}); md+="\n"; } });
-  const sans=OEUVRES.filter(o=>!pubs.some(i=>i.oeuvreIds.indexOf(o.id)>=0));
-  if(sans.length)md+="## ⚠️ Œuvres sans analyse publiée\n"+sans.map(o=>"- "+o.titre+" ("+o.auteur+")\n").join("")+"\n";
+/* ---------- 11. DIGEST ---------- */
+function buildDigest() {
+  const pubs = DB.inbox.filter(i => i.statut === 'publiee');
+  let md = '# Digest EAF — ' + new Date().toLocaleDateString('fr-FR') + '\n\nProgramme : ' + DB.settings.currentProgram + ' · ' + pubs.length + ' analyses publiées.\n\n';
+  OEUVRES.forEach(o => {
+    const items = pubs.filter(i => i.oeuvreIds.indexOf(o.id) >= 0);
+    if (items.length) {
+      md += '## ' + o.titre + ' (' + o.auteur + ') — ' + OBJETS[o.objet].l + ', voie ' + o.voie + '\n';
+      items.forEach(i => { md += '- [' + i.titre + '](' + i.url + ') · ' + i.format + ' · ' + i.exercice + ' · via ' + i.source + '\n'; });
+      md += '\n';
+    }
+  });
+  const sans = OEUVRES.filter(o => !pubs.some(i => i.oeuvreIds.indexOf(o.id) >= 0));
+  if (sans.length) md += '## ⚠️ Œuvres sans analyse publiée\n' + sans.map(o => '- ' + o.titre + ' (' + o.auteur + ')\n').join('') + '\n';
   return md;
 }
 
 /* ---------- 12. DIAGNOSTIC ---------- */
-async function runDiagnostics(){
-  const box=$("#diagResults"); if(!box)return;
-  const btn=$("#btnDiag"); if(btn)btn.disabled=true;
-  const res=[];
-  const add=(name,ok,detail)=>{ res.push({name,ok,detail}); box.innerHTML=res.map(r=>'<div class="diag-row"><span class="diag-ico '+(r.ok?"diag-ok":"diag-ko")+'">'+(r.ok?"✓":"✗")+'</span><b>'+esc(r.name)+'</b><span class="muted small" style="margin-left:auto">'+esc(r.detail)+'</span></div>').join(""); };
-  try{ Storage.write({_t:1}); add("Stockage (lecture/écriture)",Storage.read()&&true,"mode "+(Storage.persistent?"localStorage":"mémoire")); }catch(e){ add("Stockage",false,e.message); }
-  add("Référentiel œuvres",OEUVRES.length===16,OEUVRES.length+" œuvres");
-  add("Whitelist liens",DB.liens.length>=50,DB.liens.length+" liens");
-  add("Étiquetage par mots-clés",matchOeuvres({t:"La Peau de chagrin, incipit",x:"Balzac"}).indexOf("balzac")>=0,"œuvre détectée");
-  add("Dédoublonnage (empreinte)",normFP("https://www.example.com/page?x=1","t","s")===normFP("http://example.com/page","t","s"),"URL équivalentes → même empreinte");
-  const sc=composite({date:nowISO().slice(0,10),source:"lumni",oeuvreIds:["balzac"]});
-  add("Score composite",sc>=0&&sc<=10,"score "+sc+"/10");
-  add("Matrice des permissions",PERMS.admin.indexOf("publish")>=0&&PERMS.lecture.indexOf("publish")<0,"admin peut publier, lecture seule non");
-  const prevMode=DB.settings.testMode; DB.settings.testMode=true;
-  const l=DB.liens[0]; const r=await checkLink(l); DB.settings.testMode=prevMode; save();
-  add("Contrôle d'un lien (simulation)",r==="responds"||r==="error","retour : "+r);
-  add("Flux réels configurés",REAL_FEEDS.length>0,REAL_FEEDS.length+" flux dans REAL_FEEDS");
-  const md=buildDigest();
-  add("Génération du digest",md.indexOf("Digest EAF")>=0,"Markdown produit");
-  add("Export JSON",JSON.stringify(DB).length>100,"sérialisation OK");
-  const okN=res.filter(x=>x.ok).length;
-  toast("Diagnostic : "+okN+"/"+res.length+" tests réussis.",okN===res.length?"ok":"err");
-  if(btn)btn.disabled=false;
+async function runDiagnostics() {
+  const box = $('#diagResults'); if (!box) return;
+  const btn = $('#btnDiag'); if (btn) btn.disabled = true;
+  const res = [];
+  const add = (name, ok, detail) => {
+    res.push({ name, ok, detail });
+    box.innerHTML = res.map(r =>
+      '<div class="diag-row"><span class="diag-ico ' + (r.ok ? 'diag-ok' : 'diag-ko') + '">' +
+      (r.ok ? '✓' : '✗') + '</span><b>' + esc(r.name) +
+      '</b><span class="muted small" style="margin-left:auto">' + esc(r.detail) + '</span></div>'
+    ).join('');
+  };
+
+  add('Référentiel œuvres', OEUVRES.length === 16, OEUVRES.length + ' œuvres');
+  add('Whitelist liens', DB.liens.length >= 20, DB.liens.length + ' liens');
+  add('Étiquetage par mots-clés',
+    matchOeuvres({ t: 'La Peau de chagrin, incipit', x: 'Balzac' }).indexOf('balzac') >= 0, 'œuvre détectée');
+  add('Dédoublonnage (empreinte)',
+    normFP('https://www.example.com/page?x=1', 't', 's') === normFP('http://example.com/page', 't', 's'),
+    'URL équivalentes → même empreinte');
+  const sc = composite({ date: nowISO().slice(0, 10), source: 'lumni', oeuvreIds: ['balzac'] });
+  add('Score composite', sc >= 0 && sc <= 10, 'score ' + sc + '/10');
+  add('Matrice des permissions',
+    PERMS.admin.indexOf('publish') >= 0 && PERMS.lecture.indexOf('publish') < 0,
+    'admin peut publier, lecture seule non');
+
+  // Test Supabase
+  try {
+    const r = await fetch('/api/load-data');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    add('Connectivité Supabase', data && data.state && data.state.version === 3,
+      'état chargé (v' + (data.state ? data.state.version : '?') + ')');
+  } catch (e) {
+    add('Connectivité Supabase', false, e.message);
+  }
+
+  // Test /api/check-link
+  try {
+    const r = await fetch('/api/check-link?url=' + encodeURIComponent('https://example.com'));
+    const d = await r.json();
+    add('Fonction /api/check-link', d && typeof d.ok === 'boolean',
+      d.ok ? 'example.com répond' : 'erreur');
+  } catch (e) {
+    add('Fonction /api/check-link', false, e.message);
+  }
+
+  // Test /api/collect avec un flux minimal
+  try {
+    const r = await fetch('/api/collect?feed=' + encodeURIComponent('https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss'));
+    const d = await r.json();
+    add('Fonction /api/collect (flux réel)',
+      d && !d.error && Array.isArray(d.items) && d.items.length > 0,
+      d.error ? d.error : (d.items ? d.items.length + ' éléments' : 'vide'));
+  } catch (e) {
+    add('Fonction /api/collect (flux réel)', false, e.message);
+  }
+
+  // Contrôle d'un lien (simulation)
+  const prevMode = DB.settings.testMode;
+  DB.settings.testMode = true;
+  const l = DB.liens[0]; const r = await checkLink(l);
+  DB.settings.testMode = prevMode; save();
+  add('Contrôle d\'un lien (simulation)', r === 'responds' || r === 'error', 'retour : ' + r);
+
+  add('Flux réels configurés', REAL_FEEDS.length > 0, REAL_FEEDS.length + ' flux dans REAL_FEEDS');
+  const md = buildDigest();
+  add('Génération du digest', md.indexOf('Digest EAF') >= 0, 'Markdown produit');
+  add('Export JSON', JSON.stringify(DB).length > 100, 'sérialisation OK');
+
+  const okN = res.filter(x => x.ok).length;
+  toast('Diagnostic : ' + okN + '/' + res.length + ' tests réussis.', okN === res.length ? 'ok' : 'err');
+  if (btn) btn.disabled = false;
 }
 
 /* ---------- 13. RENDU ---------- */
-let currentView="dashboard";
-const TITLES={dashboard:["📊 Tableau de bord","Vue d'ensemble : liens, collecte, veille BO, workflow, couverture."],
- liens:["🔗 Surveillance des liens","Contrôle réseau de la whitelist. Mode Simulation (par défaut) ou réseau réel."],
- oeuvres:["📚 Œuvres au programme","Référentiel clé d'indexation + péremption par session."],
- collecte:["📥 Collecte & Inbox","Pipeline : lancement manuel/planifié, étiquetage, dédoublonnage, score."],
- couverture:["🗂️ Couverture par œuvre","Matrice œuvre × analyses publiées."],
- workflow:["✍️ Workflow & Audit","Machine à états éditoriale + journal d'audit append-only."],
- digest:["📰 Digest","Synthèse des nouveautés publiées, groupées par œuvre."],
- rapports:["🚨 Signalements","Retours utilisateurs et file de modération."],
- candidats:["🆕 Sources candidates","Détection et approbation de nouvelles sources."],
- diagnostic:["🧪 Diagnostic","11 tests automatiques pour vérifier que chaque module fonctionne."],
- securite:["⚙️ Sécurité & Données","Rôles, permissions, sauvegarde/export/import, réinitialisation."]};
-function setView(v){ currentView=v; document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.view===v)); $("#pageTitle").textContent=TITLES[v][0]; $("#pageSub").textContent=TITLES[v][1]; render(); }
-function refreshCounts(){ $("#cLiens").textContent=DB.liens.filter(l=>l.statut==="a_verifier").length; $("#cInbox").textContent=DB.inbox.filter(i=>i.statut==="candidate"||i.statut==="en_revue").length; $("#cRapp").textContent=DB.rapports.filter(r=>r.statut==="ouvert").length; $("#cCand").textContent=DB.candidats.filter(c=>c.statut==="pendant").length; }
-function render(){
-  const v=$("#view"); if(!v)return;
-  if(currentView==="dashboard")v.innerHTML=viewDashboard();
-  else if(currentView==="liens")v.innerHTML=viewLiens();
-  else if(currentView==="oeuvres")v.innerHTML=viewOeuvres();
-  else if(currentView==="collecte")v.innerHTML=viewCollecte();
-  else if(currentView==="couverture")v.innerHTML=viewCouverture();
-  else if(currentView==="workflow")v.innerHTML=viewWorkflow();
-  else if(currentView==="digest")v.innerHTML=viewDigest();
-  else if(currentView==="rapports")v.innerHTML=viewRapports();
-  else if(currentView==="candidats")v.innerHTML=viewCandidats();
-  else if(currentView==="diagnostic")v.innerHTML=viewDiagnostic();
-  else if(currentView==="securite")v.innerHTML=viewSecurite();
-  if(currentView==="liens")renderLiensTable();
+let currentView = 'dashboard';
+const TITLES = {
+  dashboard: ['📊 Tableau de bord', "Vue d'ensemble : liens, collecte, veille BO, workflow, couverture."],
+  liens: ['🔗 Surveillance des liens', 'Contrôle réseau de la whitelist. Mode Simulation (par défaut) ou réseau réel.'],
+  oeuvres: ['📚 Œuvres au programme', 'Référentiel clé d\'indexation + péremption par session.'],
+  collecte: ['📥 Collecte & Inbox', 'Pipeline : lancement manuel/planifié, étiquetage, dédoublonnage, score.'],
+  couverture: ['🗂️ Couverture par œuvre', 'Matrice œuvre × analyses publiées.'],
+  workflow: ['✍️ Workflow & Audit', "Machine à états éditoriale + journal d'audit append-only."],
+  digest: ['📰 Digest', 'Synthèse des nouveautés publiées, groupées par œuvre.'],
+  rapports: ['🚨 Signalements', 'Retours utilisateurs et file de modération.'],
+  candidats: ['🆕 Sources candidates', 'Détection et approbation de nouvelles sources.'],
+  diagnostic: ['🧪 Diagnostic', '12 tests automatiques pour vérifier que chaque module fonctionne.'],
+  securite: ['⚙️ Sécurité & Données', "Rôles, permissions, sauvegarde/export/import, réinitialisation."]
+};
+function setView(v) {
+  currentView = v;
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  $('#pageTitle').textContent = TITLES[v][0];
+  $('#pageSub').textContent = TITLES[v][1];
+  render();
+}
+function refreshCounts() {
+  $('#cLiens').textContent = DB.liens.filter(l => l.statut === 'a_verifier').length;
+  $('#cInbox').textContent = DB.inbox.filter(i => i.statut === 'candidate' || i.statut === 'en_revue').length;
+  $('#cRapp').textContent = DB.rapports.filter(r => r.statut === 'ouvert').length;
+  $('#cCand').textContent = DB.candidats.filter(c => c.statut === 'pendant').length;
+}
+function render() {
+  const v = $('#view'); if (!v) return;
+  const fns = {
+    dashboard: viewDashboard, liens: viewLiens, oeuvres: viewOeuvres,
+    collecte: viewCollecte, couverture: viewCouverture, workflow: viewWorkflow,
+    digest: viewDigest, rapports: viewRapports, candidats: viewCandidats,
+    diagnostic: viewDiagnostic, securite: viewSecurite
+  };
+  v.innerHTML = (fns[currentView] || viewDashboard)();
+  if (currentView === 'liens') renderLiensTable();
   updateSchedUI();
 }
 
-function viewDashboard(){
-  const ok=DB.liens.filter(l=>l.dernier&&l.dernier.res==="responds").length;
-  const cand=DB.inbox.filter(i=>i.statut==="candidate").length;
-  const pub=DB.inbox.filter(i=>i.statut==="publiee").length;
-  const couvertes=OEUVRES.filter(o=>DB.inbox.some(i=>i.statut==="publiee"&&i.oeuvreIds.indexOf(o.id)>=0)).length;
-  const pct=Math.round(couvertes/OEUVRES.length*100);
-  const obsolete=DB.inbox.filter(i=>i.obsolete).length;
-  const lastC=DB.collectes[0];
-  return '<div class="grid grid-4">'+
-  '<div class="stat k-red"><b>'+DB.liens.length+'</b><span>Liens surveillés</span></div>'+
-  '<div class="stat k-green"><b>'+ok+'</b><span>Répondent</span></div>'+
-  '<div class="stat k-gold"><b>'+cand+'</b><span>Candidates</span></div>'+
-  '<div class="stat k-ink"><b>'+pub+'</b><span>Analyses publiées</span></div>'+
-  '<div class="stat k-teal"><b>'+couvertes+'/'+OEUVRES.length+'</b><span>Œuvres couvertes</span></div>'+
-  '<div class="stat k-orange"><b>'+obsolete+'</b><span>Obsolètes (programme)</span></div>'+
-  '<div class="stat k-ink"><b>'+DB.candidats.filter(c=>c.statut==="pendant").length+'</b><span>Sources à approuver</span></div>'+
-  '<div class="stat k-red"><b>'+DB.rapports.filter(r=>r.statut==="ouvert").length+'</b><span>Signalements ouverts</span></div>'+
-  '</div>'+
-  '<div class="card" style="margin-top:14px"><div class="kv"><span>Couverture du programme (≥1 analyse publiée par œuvre)</span><b>'+pct+'%</b></div><div class="progress" style="margin-top:8px"><i style="width:'+pct+'%"></i></div></div>'+
-  '<div class="grid grid-2">'+
-  '<div class="card"><h3 class="h">⏰ Planificateur (cron)</h3><p class="small muted" id="countdown">'+(DB.settings.actif?"":"Planificateur arrêté.")+'</p>'+
-  '<div class="field" style="margin-top:10px"><label>Intervalle (minutes)</label><input type="number" id="freqInput" min="1" max="1440" value="'+DB.settings.freq+'" style="max-width:120px"></div>'+
-  '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn--red btn--sm" id="btnStartSched">▶ Activer</button><button class="btn btn--ghost btn--sm" id="btnStopSched">⏸ Arrêter</button></div>'+
-  '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px"><label class="switch"><input type="checkbox" id="swCollect" '+(DB.settings.autoCollect?"checked":"")+'><i></i><span class="small">Collecte auto</span></label><label class="switch"><input type="checkbox" id="swLinks" '+(DB.settings.autoLinks?"checked":"")+'><i></i><span class="small">Liens auto</span></label></div>'+
-  '<p class="small muted" style="margin-top:10px">Dernière collecte : '+(lastC?fmtDT(lastC.ts)+" ("+lastC.trigger+")":"—")+'</p></div>'+
-  '<div class="card"><h3 class="h">⚑ Veille BO / Éduscol & péremption</h3><p class="small muted" style="margin-bottom:10px">Programme en cours : <b>'+DB.settings.currentProgram+'</b> · suivant : <b>'+DB.settings.nextProgram+'</b>.</p>'+
-  '<button class="btn btn--ink btn--sm" id="btnWatchBO">⚑ Simuler une publication BO</button>'+
-  '<div style="margin-top:10px">'+(DB.watch.slice(0,3).map(w=>'<div class="kv"><span class="small">'+esc(w.message)+'</span><span class="mono muted small">'+fmtDT(w.ts)+'</span></div>').join("")||'<p class="small muted">Aucun événement de veille.</p>')+'</div></div>'+
-  '</div>'+
-  '<div class="grid grid-2">'+
-  '<div class="card"><h3 class="h">🖥 Journal d\'exécution</h3><div class="log">'+(DB.log.map(e=>'<div><span class="t">['+fmtDT(e.ts)+']</span> <span class="'+e.cls+'">'+esc(e.msg)+'</span></div>').join("")||'<div class="muted">Aucune exécution.</div>')+'</div></div>'+
-  '<div class="card"><h3 class="h">🧭 Protocole de test</h3><ol class="small" style="margin-left:18px;line-height:1.9">'+
-  '<li><b>Lancer une collecte</b> (en-tête) → l\'inbox se remplit.</li>'+
-  '<li><b>Tester un lien</b> dans « Surveillance ».</li>'+
-  '<li><b>Décochez « Mode Simulation »</b> pour passer en réseau réel (nécessite le déploiement Vercel).</li>'+
-  '<li><b>Simuler une publication BO</b> → œuvre sortante + analyses obsolètes.</li>'+
-  '<li><b>Dérouler le workflow</b> : Candidate → En revue → Valider → Publier.</li>'+
-  '<li><b>Couverture</b> puis <b>Digest</b>.</li>'+
-  '<li><b>Détecter/approuver</b> une source candidate.</li>'+
-  '<li><b>Diagnostic</b> : vérifiez que les 11 tests passent au vert.</li></ol></div>'+
-  '</div>';
+function viewDashboard() {
+  const ok = DB.liens.filter(l => l.dernier && l.dernier.res === 'responds').length;
+  const cand = DB.inbox.filter(i => i.statut === 'candidate').length;
+  const pub = DB.inbox.filter(i => i.statut === 'publiee').length;
+  const couvertes = OEUVRES.filter(o => DB.inbox.some(i => i.statut === 'publiee' && i.oeuvreIds.indexOf(o.id) >= 0)).length;
+  const pct = Math.round(couvertes / OEUVRES.length * 100);
+  const obsolete = DB.inbox.filter(i => i.obsolete).length;
+  const lastC = DB.collectes[0];
+  return '<div class="grid grid-4">' +
+    '<div class="stat k-red"><b>' + DB.liens.length + '</b><span>Liens surveillés</span></div>' +
+    '<div class="stat k-green"><b>' + ok + '</b><span>Répondent</span></div>' +
+    '<div class="stat k-gold"><b>' + cand + '</b><span>Candidates</span></div>' +
+    '<div class="stat k-ink"><b>' + pub + '</b><span>Analyses publiées</span></div>' +
+    '<div class="stat k-teal"><b>' + couvertes + '/' + OEUVRES.length + '</b><span>Œuvres couvertes</span></div>' +
+    '<div class="stat k-orange"><b>' + obsolete + '</b><span>Obsolètes (programme)</span></div>' +
+    '<div class="stat k-ink"><b>' + DB.candidats.filter(c => c.statut === 'pendant').length + '</b><span>Sources à approuver</span></div>' +
+    '<div class="stat k-red"><b>' + DB.rapports.filter(r => r.statut === 'ouvert').length + '</b><span>Signalements ouverts</span></div>' +
+    '</div>' +
+    '<div class="card" style="margin-top:14px"><div class="kv"><span>Couverture du programme (≥1 analyse publiée par œuvre)</span><b>' + pct + '%</b></div><div class="progress" style="margin-top:8px"><i style="width:' + pct + '%"></i></div></div>' +
+    '<div class="grid grid-2">' +
+    '<div class="card"><h3 class="h">⏰ Planificateur (cron)</h3><p class="small muted" id="countdown">' + (DB.settings.actif ? '' : 'Planificateur arrêté.') + '</p>' +
+    '<div class="field" style="margin-top:10px"><label>Intervalle (minutes)</label><input type="number" id="freqInput" min="1" max="1440" value="' + DB.settings.freq + '" style="max-width:120px"></div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn--red btn--sm" id="btnStartSched">▶ Activer</button><button class="btn btn--ghost btn--sm" id="btnStopSched">⏸ Arrêter</button></div>' +
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px"><label class="switch"><input type="checkbox" id="swCollect" ' + (DB.settings.autoCollect ? 'checked' : '') + '><i></i><span class="small">Collecte auto</span></label><label class="switch"><input type="checkbox" id="swLinks" ' + (DB.settings.autoLinks ? 'checked' : '') + '><i></i><span class="small">Liens auto</span></label></div>' +
+    '<p class="small muted" style="margin-top:10px">Dernière collecte : ' + (lastC ? fmtDT(lastC.ts) + ' (' + lastC.trigger + ')' : '—') + '</p></div>' +
+    '<div class="card"><h3 class="h">⚑ Veille BO / Éduscol & péremption</h3><p class="small muted" style="margin-bottom:10px">Programme en cours : <b>' + DB.settings.currentProgram + '</b> · suivant : <b>' + DB.settings.nextProgram + '</b>.</p>' +
+    '<button class="btn btn--ink btn--sm" id="btnWatchBO">⚑ Simuler une publication BO</button>' +
+    '<div style="margin-top:10px">' + (DB.watch.slice(0, 3).map(w => '<div class="kv"><span class="small">' + esc(w.message) + '</span><span class="mono muted small">' + fmtDT(w.ts) + '</span></div>').join('') || '<p class="small muted">Aucun événement de veille.</p>') + '</div></div>' +
+    '</div>' +
+    '<div class="grid grid-2">' +
+    '<div class="card"><h3 class="h">🖥 Journal d\'exécution</h3><div class="log">' + (DB.log.map(e => '<div><span class="t">[' + fmtDT(e.ts) + ']</span> <span class="' + e.cls + '">' + esc(e.msg) + '</span></div>').join('') || '<div class="muted">Aucune exécution.</div>') + '</div></div>' +
+    '<div class="card"><h3 class="h">🧭 Protocole de test</h3><ol class="small" style="margin-left:18px;line-height:1.9">' +
+    '<li><b>Lancer une collecte</b> (en-tête) → l\'inbox se remplit.</li>' +
+    '<li><b>Tester un lien</b> dans « Surveillance ».</li>' +
+    '<li><b>Décochez « Mode Simulation »</b> pour passer en réseau réel (Vercel requis).</li>' +
+    '<li><b>Simuler une publication BO</b> → œuvre sortante + analyses obsolètes.</li>' +
+    '<li><b>Dérouler le workflow</b> : Candidate → En revue → Valider → Publier.</li>' +
+    '<li><b>Couverture</b> puis <b>Digest</b>.</li>' +
+    '<li><b>Détecter/approuver</b> une source candidate.</li>' +
+    '<li><b>Diagnostic</b> : vérifiez que les 12 tests passent au vert.</li></ol></div>' +
+    '</div>';
 }
 
-let lienFiltre="tous";
-function viewLiens(){
-  return '<div class="filters">'+
-  '<button class="chipbtn '+(lienFiltre==="tous"?"on":"")+'" data-lf="tous">Tous ('+DB.liens.length+')</button>'+
-  '<button class="chipbtn '+(lienFiltre==="a_verifier"?"on":"")+'" data-lf="a_verifier">⚠ À vérifier ('+DB.liens.filter(l=>l.statut==="a_verifier").length+')</button>'+
-  '<button class="chipbtn '+(lienFiltre==="jamais"?"on":"")+'" data-lf="jamais">Jamais testés ('+DB.liens.filter(l=>!l.dernier).length+')</button>'+
-  '<button class="chipbtn '+(lienFiltre==="erreur"?"on":"")+'" data-lf="erreur">En erreur ('+DB.liens.filter(l=>l.dernier&&l.dernier.res==="error").length+')</button>'+
-  '<span style="flex:1"></span>'+
-  '<label class="switch"><input type="checkbox" id="swTestMode" '+(DB.settings.testMode?"checked":"")+'><i></i><span class="small">Mode Simulation</span></label>'+
-  '<button class="btn btn--ghost btn--sm" id="btnCheckLot">🔎 Tester un lot (12)</button></div>'+
-  '<div class="hint">ℹ️ Le <b>mode réseau réel</b> appelle <span class="mono">/api/check-link</span> et <span class="mono">/api/collect</span> : il ne fonctionne qu\'une fois l\'application <b>déployée sur Vercel</b>. En local, laissez le Mode Simulation activé.</div>'+
-  '<div class="card" style="margin-top:12px;padding:0;overflow-x:auto"><table class="tbl" id="liensTbl"></table></div>'+
-  '<p class="small muted" style="margin-top:8px">ℹ️ En mode réel, le serveur suit les redirections et renvoie le code HTTP exact (détection des vrais liens morts).</p>';
+let lienFiltre = 'tous';
+function viewLiens() {
+  return '<div class="filters">' +
+    '<button class="chipbtn ' + (lienFiltre === 'tous' ? 'on' : '') + '" data-lf="tous">Tous (' + DB.liens.length + ')</button>' +
+    '<button class="chipbtn ' + (lienFiltre === 'a_verifier' ? 'on' : '') + '" data-lf="a_verifier">⚠ À vérifier (' + DB.liens.filter(l => l.statut === 'a_verifier').length + ')</button>' +
+    '<button class="chipbtn ' + (lienFiltre === 'jamais' ? 'on' : '') + '" data-lf="jamais">Jamais testés (' + DB.liens.filter(l => !l.dernier).length + ')</button>' +
+    '<button class="chipbtn ' + (lienFiltre === 'erreur' ? 'on' : '') + '" data-lf="erreur">En erreur (' + DB.liens.filter(l => l.dernier && l.dernier.res === 'error').length + ')</button>' +
+    '<span style="flex:1"></span>' +
+    '<label class="switch"><input type="checkbox" id="swTestMode" ' + (DB.settings.testMode ? 'checked' : '') + '><i></i><span class="small">Mode Simulation</span></label>' +
+    '<button class="btn btn--ghost btn--sm" id="btnCheckLot">🔎 Tester un lot (12)</button></div>' +
+    '<div class="hint">ℹ️ Le <b>mode réseau réel</b> appelle <span class="mono">/api/check-link</span> et <span class="mono">/api/collect</span> : il ne fonctionne qu\'une fois l\'application <b>déployée sur Vercel</b>. En local, laissez le Mode Simulation activé.</div>' +
+    '<div class="card" style="margin-top:12px;padding:0;overflow-x:auto"><table class="tbl" id="liensTbl"></table></div>';
 }
-function renderLiensTable(){
-  const tbl=$("#liensTbl"); if(!tbl)return;
-  let list=DB.liens;
-  if(lienFiltre==="a_verifier")list=list.filter(l=>l.statut==="a_verifier");
-  if(lienFiltre==="jamais")list=list.filter(l=>!l.dernier);
-  if(lienFiltre==="erreur")list=list.filter(l=>l.dernier&&l.dernier.res==="error");
-  tbl.innerHTML='<thead><tr><th>#</th><th>Ressource</th><th>Statut éditorial</th><th>Note</th><th>Dernier test</th><th></th></tr></thead><tbody>'+
-  list.map(l=>{
-    const d=l.dernier;
-    const testBadge=!d?'<span class="b b-outline">Non testé</span>':(d.res==="responds"?'<span class="b b-green">◉ Répond</span>':'<span class="b b-red">◌ Erreur</span>');
-    const stBadge=l.statut==="a_verifier"?'<span class="b b-gold">⚠ À vérifier</span>':(l.statut==="valide"?'<span class="b b-green">✓ Validé</span>':'<span class="b b-teal">● Fiable</span>');
-    const http=d&&d.detail&&d.detail.status?('<span class="mono small muted"> · HTTP '+d.detail.status+'</span>'):'';
-    return '<tr><td class="mono muted">'+l.rang+'</td><td><b>'+esc(l.titre)+'</b><br><span class="mono muted small">'+esc(l.url)+'</span></td><td>'+stBadge+'<br><span class="b b-outline" style="margin-top:3px">'+esc(l.type)+'</span></td><td><b>'+l.score+'</b><span class="muted">/10</span></td><td>'+testBadge+http+'<br><span class="mono muted small">'+(d?fmtDT(d.ts):"—")+'</span></td><td style="white-space:nowrap"><a class="btn btn--ghost btn--sm" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">↗</a> <button class="btn btn--ink btn--sm" data-test="'+l.id+'">Test</button></td></tr>';
-  }).join("")+'</tbody>';
-}
-
-function viewOeuvres(){
-  return '<p class="small muted" style="margin-bottom:12px">Clé d\'indexation de toutes les analyses. Les œuvres <b>sortantes</b> font marquer leurs analyses comme obsolètes.</p>'+
-  '<div class="card" style="padding:0;overflow-x:auto"><table class="tbl"><thead><tr><th>Œuvre</th><th>Auteur</th><th>Objet</th><th>Voie</th><th>Parcours</th><th>Session</th><th>Statut</th><th>Analyses pub.</th></tr></thead><tbody>'+
-  OEUVRES.map(o=>{
-    const n=DB.inbox.filter(i=>i.statut==="publiee"&&i.oeuvreIds.indexOf(o.id)>=0).length;
-    const stBadge=o.statut==="Au programme"?'<span class="b b-green">Au programme</span>':'<span class="b b-orange">Sortante</span>';
-    const cov=n===0?'<span class="b b-red">0 ⚠</span>':(n<3?'<span class="b b-gold">'+n+'</span>':'<span class="b b-green">'+n+'</span>');
-    return '<tr><td><b>'+esc(o.titre)+'</b></td><td>'+esc(o.auteur)+'</td><td><span class="b '+OBJETS[o.objet].c+'">'+OBJETS[o.objet].l+'</span></td><td><span class="b b-outline">'+o.voie+'</span></td><td class="small muted">'+esc(o.parcours)+'</td><td class="mono small">'+o.session+'</td><td>'+stBadge+'</td><td>'+cov+'</td></tr>';
-  }).join("")+'</tbody></table></div>';
+function renderLiensTable() {
+  const tbl = $('#liensTbl'); if (!tbl) return;
+  let list = DB.liens;
+  if (lienFiltre === 'a_verifier') list = list.filter(l => l.statut === 'a_verifier');
+  if (lienFiltre === 'jamais') list = list.filter(l => !l.dernier);
+  if (lienFiltre === 'erreur') list = list.filter(l => l.dernier && l.dernier.res === 'error');
+  tbl.innerHTML = '<thead><tr><th>#</th><th>Ressource</th><th>Statut</th><th>Note</th><th>Dernier test</th><th></th></tr></thead><tbody>' +
+    list.map(l => {
+      const d = l.dernier;
+      const testBadge = !d ? '<span class="b b-outline">Non testé</span>' :
+        (d.res === 'responds' ? '<span class="b b-green">◉ Répond</span>' : '<span class="b b-red">◌ Erreur</span>');
+      const stBadge = l.statut === 'a_verifier' ? '<span class="b b-gold">⚠ À vérifier</span>' :
+        (l.statut === 'valide' ? '<span class="b b-green">✓ Validé</span>' : '<span class="b b-teal">● Fiable</span>');
+      const http = d && d.detail && d.detail.status ? ('<span class="mono small muted"> · HTTP ' + d.detail.status + '</span>') : '';
+      return '<tr><td class="mono muted">' + l.rang + '</td><td><b>' + esc(l.titre) + '</b><br><span class="mono muted small">' + esc(l.url) + '</span></td><td>' + stBadge + '<br><span class="b b-outline" style="margin-top:3px">' + esc(l.type) + '</span></td><td><b>' + l.score + '</b><span class="muted">/10</span></td><td>' + testBadge + http + '<br><span class="mono muted small">' + (d ? fmtDT(d.ts) : '—') + '</span></td><td style="white-space:nowrap"><a class="btn btn--ghost btn--sm" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">↗</a> <button class="btn btn--ink btn--sm" data-test="' + l.id + '">Test</button></td></tr>';
+    }).join('') + '</tbody>';
 }
 
-let inboxFiltre="actives";
-function viewCollecte(){
-  const order={candidate:0,en_revue:1,validee:2,publiee:3,rejetee:4,dupliquee:5};
-  let items=[...DB.inbox].sort((a,b)=>order[a.statut]-order[b.statut]||b.ts.localeCompare(a.ts));
-  if(inboxFiltre==="actives")items=items.filter(i=>["candidate","en_revue","validee","publiee"].indexOf(i.statut)>=0);
-  if(inboxFiltre==="candidate")items=items.filter(i=>i.statut==="candidate");
-  if(inboxFiltre==="publiee")items=items.filter(i=>i.statut==="publiee");
-  if(inboxFiltre==="ecartees")items=items.filter(i=>["rejetee","dupliquee"].indexOf(i.statut)>=0);
-  return '<div class="filters">'+
-  '<button class="chipbtn '+(inboxFiltre==="actives"?"on":"")+'" data-if="actives">Actives</button>'+
-  '<button class="chipbtn '+(inboxFiltre==="candidate"?"on":"")+'" data-if="candidate">Candidates</button>'+
-  '<button class="chipbtn '+(inboxFiltre==="publiee"?"on":"")+'" data-if="publiee">Publiées</button>'+
-  '<button class="chipbtn '+(inboxFiltre==="ecartees"?"on":"")+'" data-if="ecartees">Écartées / doublons</button>'+
-  '<span style="flex:1"></span><button class="btn btn--red btn--sm" id="btnCollectNow2">⚡ Lancer une collecte</button></div>'+
-  '<div class="hint">Mode actuel : <b>'+(DB.settings.testMode?"SIMULATION (gisement de démonstration)":"RÉEL (flux "+REAL_FEEDS.length+" interrogés via /api/collect)")+'</b>. Les flux en échec sont listés dans le journal du tableau de bord.</div>'+
-  '<div class="grid grid-4" style="margin:14px 0">'+
-  '<div class="stat k-gold"><b>'+DB.inbox.filter(i=>i.statut==="candidate").length+'</b><span>Candidates</span></div>'+
-  '<div class="stat k-teal"><b>'+DB.inbox.filter(i=>i.statut==="en_revue").length+'</b><span>En revue</span></div>'+
-  '<div class="stat k-green"><b>'+DB.inbox.filter(i=>i.statut==="validee").length+'</b><span>Validées</span></div>'+
-  '<div class="stat k-ink"><b>'+DB.inbox.filter(i=>i.statut==="publiee").length+'</b><span>Publiées</span></div></div>'+
-  (items.length===0?'<div class="empty">Aucun élément. Lancez une collecte ⚡.</div>':items.map(itemCard).join(""))+
-  '<h2 class="section" style="margin-top:24px">Historique des collectes</h2>'+
-  '<div class="card" style="padding:0;overflow-x:auto"><table class="tbl"><thead><tr><th>Date</th><th>Déclencheur</th><th>Parcourus</th><th>Nouveaux</th><th>Doublons</th><th>Non identifiés</th></tr></thead><tbody>'+
-  (DB.collectes.map(c=>'<tr><td class="mono">'+fmtDT(c.ts)+'</td><td><span class="b '+(c.trigger==="programmée"?"b-teal":"b-ink")+'">'+esc(c.trigger)+'</span></td><td>'+c.items+'</td><td><b>'+c.nouveaux+'</b></td><td>'+c.doublons+'</td><td>'+c.nonIdentifies+'</td></tr>').join("")||'<tr><td colspan="6" class="muted">Aucune collecte.</td></tr>')+'</tbody></table></div>';
-}
-function itemCard(it){
-  const objBadges=it.objets.map(o=>'<span class="b '+OBJETS[o].c+'">'+OBJETS[o].l+'</span>').join(" ");
-  const oeuvreTags=it.oeuvreIds.map(id=>{const o=OEUVRES.find(x=>x.id===id);return '<span class="b b-teal">📖 '+esc(o.titre)+'</span>';}).join(" ")||'<span class="b b-gold">⚠ œuvre non identifiée</span>';
-  const obsoleteB=it.obsolete?'<span class="b b-orange">⚠ Obsolète (œuvre sortante)</span>':"";
-  const trs=(TRANSITIONS[it.statut]||[]).map(t=>{ const dis=can(t.perm)?"":" disabled"; return '<button class="btn btn--sm '+t.cls+'" data-move="'+it.id+'" data-to="'+t.to+'"'+dis+'>'+t.label+'</button>'; }).join("");
-  return '<div class="card item st-'+it.statut+(it.obsolete?" obsolete":"")+'">'+
-  '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="b '+STATUT_BADGE[it.statut]+'">'+STATUT_LABEL[it.statut]+'</span><span class="b b-outline">'+esc(it.format)+'</span><span class="b b-outline">'+esc(it.exercice)+'</span>'+objBadges+'<span class="b b-ink">Score '+it.score+'</span>'+obsoleteB+'<span style="flex:1"></span><span class="mono muted small">'+esc(it.date)+' · via '+esc(it.source)+'</span></div>'+
-  '<h3 class="h" style="margin-top:8px">'+esc(it.titre)+'</h3><p class="small muted">'+esc(it.desc)+'</p>'+
-  '<div style="margin-top:7px">'+oeuvreTags+'</div><div class="mono small muted" style="margin-top:5px">'+esc(it.url)+'</div>'+
-  '<div class="actions-row">'+trs+' <a class="btn btn--ghost btn--sm" href="'+esc(it.url)+'" target="_blank" rel="noopener noreferrer">↗ Ouvrir</a></div></div>';
+function viewOeuvres() {
+  return '<p class="small muted" style="margin-bottom:12px">Clé d\'indexation de toutes les analyses. Les œuvres <b>sortantes</b> font marquer leurs analyses comme obsolètes.</p>' +
+    '<div class="card" style="padding:0;overflow-x:auto"><table class="tbl"><thead><tr><th>Œuvre</th><th>Auteur</th><th>Objet</th><th>Voie</th><th>Parcours</th><th>Session</th><th>Statut</th><th>Analyses pub.</th></tr></thead><tbody>' +
+    OEUVRES.map(o => {
+      const n = DB.inbox.filter(i => i.statut === 'publiee' && i.oeuvreIds.indexOf(o.id) >= 0).length;
+      const stBadge = o.statut === 'Au programme' ? '<span class="b b-green">Au programme</span>' : '<span class="b b-orange">Sortante</span>';
+      const cov = n === 0 ? '<span class="b b-red">0 ⚠</span>' : (n < 3 ? '<span class="b b-gold">' + n + '</span>' : '<span class="b b-green">' + n + '</span>');
+      return '<tr><td><b>' + esc(o.titre) + '</b></td><td>' + esc(o.auteur) + '</td><td><span class="b ' + OBJETS[o.objet].c + '">' + OBJETS[o.objet].l + '</span></td><td><span class="b b-outline">' + o.voie + '</span></td><td class="small muted">' + esc(o.parcours) + '</td><td class="mono small">' + o.session + '</td><td>' + stBadge + '</td><td>' + cov + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
 }
 
-function viewCouverture(){
-  return '<p class="small muted" style="margin-bottom:12px">Nombre d\'analyses <b>publiées</b> par œuvre. Rouge = aucune analyse.</p>'+
-  '<div class="grid grid-3">'+OEUVRES.map(o=>{
-    const n=DB.inbox.filter(i=>i.statut==="publiee"&&i.oeuvreIds.indexOf(o.id)>=0).length;
-    const cls=n===0?"cov-red":(n<3?"cov-orange":"cov-green");
-    return '<div class="cov-cell '+cls+'"><b>'+n+'</b><span class="small"><b>'+esc(o.titre)+'</b><br><span class="muted">'+esc(o.auteur)+' · '+OBJETS[o.objet].l+' · '+o.voie+'</span></span></div>';
-  }).join("")+'</div>'+
-  '<h2 class="section" style="margin-top:24px">Analyse des manques</h2><div class="card">'+
-  (OEUVRES.filter(o=>!DB.inbox.some(i=>i.statut==="publiee"&&i.oeuvreIds.indexOf(o.id)>=0)).map(o=>'<div class="kv"><span>⚠️ <b>'+esc(o.titre)+'</b> — '+esc(o.auteur)+' ('+OBJETS[o.objet].l+', voie '+o.voie+')</span><span class="b b-red">Aucune analyse publiée</span></div>').join("")||'<p class="small muted">Toutes les œuvres ont au moins une analyse publiée. 🎉</p>')+'</div>';
+let inboxFiltre = 'actives';
+function viewCollecte() {
+  const order = { candidate: 0, en_revue: 1, validee: 2, publiee: 3, rejetee: 4, dupliquee: 5 };
+  let items = [...DB.inbox].sort((a, b) => order[a.statut] - order[b.statut] || b.ts.localeCompare(a.ts));
+  if (inboxFiltre === 'actives') items = items.filter(i => ['candidate', 'en_revue', 'validee', 'publiee'].indexOf(i.statut) >= 0);
+  if (inboxFiltre === 'candidate') items = items.filter(i => i.statut === 'candidate');
+  if (inboxFiltre === 'publiee') items = items.filter(i => i.statut === 'publiee');
+  if (inboxFiltre === 'ecartees') items = items.filter(i => ['rejetee', 'dupliquee'].indexOf(i.statut) >= 0);
+  return '<div class="filters">' +
+    '<button class="chipbtn ' + (inboxFiltre === 'actives' ? 'on' : '') + '" data-if="actives">Actives</button>' +
+    '<button class="chipbtn ' + (inboxFiltre === 'candidate' ? 'on' : '') + '" data-if="candidate">Candidates</button>' +
+    '<button class="chipbtn ' + (inboxFiltre === 'publiee' ? 'on' : '') + '" data-if="publiee">Publiées</button>' +
+    '<button class="chipbtn ' + (inboxFiltre === 'ecartees' ? 'on' : '') + '" data-if="ecartees">Écartées / doublons</button>' +
+    '<span style="flex:1"></span><button class="btn btn--red btn--sm" id="btnCollectNow2">⚡ Lancer une collecte</button></div>' +
+    '<div class="hint">Mode actuel : <b>' + (DB.settings.testMode ? 'SIMULATION (gisement de démonstration)' : 'RÉEL (' + REAL_FEEDS.length + ' flux interrogés via /api/collect)') + '</b>. Les flux en échec sont listés dans le journal du tableau de bord.</div>' +
+    '<div class="grid grid-4" style="margin:14px 0">' +
+    '<div class="stat k-gold"><b>' + DB.inbox.filter(i => i.statut === 'candidate').length + '</b><span>Candidates</span></div>' +
+    '<div class="stat k-teal"><b>' + DB.inbox.filter(i => i.statut === 'en_revue').length + '</b><span>En revue</span></div>' +
+    '<div class="stat k-green"><b>' + DB.inbox.filter(i => i.statut === 'validee').length + '</b><span>Validées</span></div>' +
+    '<div class="stat k-ink"><b>' + DB.inbox.filter(i => i.statut === 'publiee').length + '</b><span>Publiées</span></div></div>' +
+    (items.length === 0 ? '<div class="empty">Aucun élément. Lancez une collecte ⚡.</div>' : items.map(itemCard).join('')) +
+    '<h2 class="section" style="margin-top:24px">Historique des collectes</h2>' +
+    '<div class="card" style="padding:0;overflow-x:auto"><table class="tbl"><thead><tr><th>Date</th><th>Déclencheur</th><th>Parcourus</th><th>Nouveaux</th><th>Doublons</th><th>Non identifiés</th></tr></thead><tbody>' +
+    (DB.collectes.map(c => '<tr><td class="mono">' + fmtDT(c.ts) + '</td><td><span class="b ' + (c.trigger === 'programmée' ? 'b-teal' : 'b-ink') + '">' + esc(c.trigger) + '</span></td><td>' + c.items + '</td><td><b>' + c.nouveaux + '</b></td><td>' + c.doublons + '</td><td>' + c.nonIdentifies + '</td></tr>').join('') || '<tr><td colspan="6" class="muted">Aucune collecte.</td></tr>') + '</tbody></table></div>';
+}
+function itemCard(it) {
+  const objBadges = it.objets.map(o => '<span class="b ' + OBJETS[o].c + '">' + OBJETS[o].l + '</span>').join(' ');
+  const oeuvreTags = it.oeuvreIds.map(id => {
+    const o = OEUVRES.find(x => x.id === id);
+    return '<span class="b b-teal">📖 ' + esc(o.titre) + '</span>';
+  }).join(' ') || '<span class="b b-gold">⚠ œuvre non identifiée</span>';
+  const obsoleteB = it.obsolete ? '<span class="b b-orange">⚠ Obsolète (œuvre sortante)</span>' : '';
+  const trs = (TRANSITIONS[it.statut] || []).map(t => {
+    const dis = can(t.perm) ? '' : ' disabled';
+    return '<button class="btn btn--sm ' + t.cls + '" data-move="' + it.id + '" data-to="' + t.to + '"' + dis + '>' + t.label + '</button>';
+  }).join('');
+  return '<div class="card item st-' + it.statut + (it.obsolete ? ' obsolete' : '') + '">' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="b ' + STATUT_BADGE[it.statut] + '">' + STATUT_LABEL[it.statut] + '</span><span class="b b-outline">' + esc(it.format) + '</span><span class="b b-outline">' + esc(it.exercice) + '</span>' + objBadges + '<span class="b b-ink">Score ' + it.score + '</span>' + obsoleteB + '<span style="flex:1"></span><span class="mono muted small">' + esc(it.date) + ' · via ' + esc(it.source) + '</span></div>' +
+    '<h3 class="h" style="margin-top:8px">' + esc(it.titre) + '</h3><p class="small muted">' + esc(it.desc) + '</p>' +
+    '<div style="margin-top:7px">' + oeuvreTags + '</div><div class="mono small muted" style="margin-top:5px">' + esc(it.url) + '</div>' +
+    '<div class="actions-row">' + trs + ' <a class="btn btn--ghost btn--sm" href="' + esc(it.url) + '" target="_blank" rel="noopener noreferrer">↗ Ouvrir</a></div></div>';
 }
 
-function viewWorkflow(){
-  return '<div class="card"><h3 class="h">Répartition actuelle</h3><div style="display:flex;gap:8px;flex-wrap:wrap">'+
-  Object.entries(STATUT_LABEL).map(([k,l])=>'<span class="b '+STATUT_BADGE[k]+'">'+l+' : '+DB.inbox.filter(i=>i.statut===k).length+'</span>').join("")+'</div></div>'+
-  '<h2 class="section">Journal d\'audit ('+DB.audit.length+' entrées) — append-only</h2>'+
-  '<div class="card" style="padding:0;overflow-x:auto"><table class="tbl"><thead><tr><th>Horodatage</th><th>Utilisateur (rôle)</th><th>Action</th><th>Détails</th></tr></thead><tbody>'+
-  [...DB.audit].reverse().map(a=>'<tr><td class="mono small">'+fmtDT(a.ts)+'</td><td><span class="b b-outline">'+esc(a.user)+'</span></td><td><b>'+esc(a.action)+'</b></td><td class="small muted">'+esc(a.details)+'</td></tr>').join("")+'</tbody></table></div>';
+function viewCouverture() {
+  return '<p class="small muted" style="margin-bottom:12px">Nombre d\'analyses <b>publiées</b> par œuvre. Rouge = aucune analyse.</p>' +
+    '<div class="grid grid-3">' + OEUVRES.map(o => {
+      const n = DB.inbox.filter(i => i.statut === 'publiee' && i.oeuvreIds.indexOf(o.id) >= 0).length;
+      const cls = n === 0 ? 'cov-red' : (n < 3 ? 'cov-orange' : 'cov-green');
+      return '<div class="cov-cell ' + cls + '"><b>' + n + '</b><span class="small"><b>' + esc(o.titre) + '</b><br><span class="muted">' + esc(o.auteur) + ' · ' + OBJETS[o.objet].l + ' · ' + o.voie + '</span></span></div>';
+    }).join('') + '</div>' +
+    '<h2 class="section" style="margin-top:24px">Analyse des manques</h2><div class="card">' +
+    (OEUVRES.filter(o => !DB.inbox.some(i => i.statut === 'publiee' && i.oeuvreIds.indexOf(o.id) >= 0)).map(o => '<div class="kv"><span>⚠️ <b>' + esc(o.titre) + '</b> — ' + esc(o.auteur) + ' (' + OBJETS[o.objet].l + ', voie ' + o.voie + ')</span><span class="b b-red">Aucune analyse publiée</span></div>').join('') || '<p class="small muted">Toutes les œuvres ont au moins une analyse publiée. 🎉</p>') + '</div>';
 }
 
-function viewDigest(){
-  return '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'+
-  '<button class="btn btn--red" id="btnDigest">📰 Générer le digest</button>'+
-  '<button class="btn btn--ghost" id="btnCopyDigest">⧉ Copier (Markdown)</button>'+
-  '<button class="btn btn--ghost" id="btnExportDigest">⤓ Exporter (.md)</button></div>'+
-  '<div class="card" id="digestBox"><p class="muted small">Cliquez sur « Générer le digest ».</p></div>';
-}
-function renderDigest(){
-  const box=$("#digestBox"); if(!box)return;
-  const pubs=DB.inbox.filter(i=>i.statut==="publiee");
-  let html='<p class="small muted">Généré le '+(DB.settings.lastDigest?fmtDT(DB.settings.lastDigest):"—")+' · '+pubs.length+' analyses publiées.</p>';
-  OEUVRES.forEach(o=>{ const items=pubs.filter(i=>i.oeuvreIds.indexOf(o.id)>=0); if(items.length){ html+='<h3 class="h" style="margin-top:12px">📖 '+esc(o.titre)+' <span class="muted small">('+esc(o.auteur)+')</span></h3>'; items.forEach(i=>{ html+='<div class="kv"><span>• <a href="'+esc(i.url)+'" target="_blank" rel="noopener noreferrer">'+esc(i.titre)+'</a> <span class="b b-outline">'+esc(i.format)+'</span></span><span class="mono small muted">via '+esc(i.source)+'</span></div>'; }); } });
-  box.innerHTML=html;
+function viewWorkflow() {
+  return '<div class="card"><h3 class="h">Répartition actuelle</h3><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+    Object.entries(STATUT_LABEL).map(([k, l]) => '<span class="b ' + STATUT_BADGE[k] + '">' + l + ' : ' + DB.inbox.filter(i => i.statut === k).length + '</span>').join('') + '</div></div>' +
+    '<h2 class="section">Journal d\'audit (' + DB.audit.length + ' entrées) — append-only</h2>' +
+    '<div class="card" style="padding:0;overflow-x:auto"><table class="tbl"><thead><tr><th>Horodatage</th><th>Utilisateur (rôle)</th><th>Action</th><th>Détails</th></tr></thead><tbody>' +
+    [...DB.audit].reverse().map(a => '<tr><td class="mono small">' + fmtDT(a.ts) + '</td><td><span class="b b-outline">' + esc(a.user) + '</span></td><td><b>' + esc(a.action) + '</b></td><td class="small muted">' + esc(a.details) + '</td></tr>').join('') + '</tbody></table></div>';
 }
 
-function viewRapports(){
-  return '<div class="grid grid-2">'+
-  '<div class="card"><h3 class="h">🚨 Signaler un problème</h3>'+
-  '<div class="field"><label>Ressource concernée</label><select id="rappLink">'+DB.liens.map(l=>'<option value="'+l.id+'">'+esc(l.titre)+'</option>').join("")+'</select></div>'+
-  '<div class="field"><label>Type</label><select id="rappType"><option>Lien mort</option><option>Contenu obsolète</option><option>Erreur pédagogique</option><option>Hors programme</option><option>Autre</option></select></div>'+
-  '<div class="field"><label>Description</label><textarea id="rappMsg" rows="3" placeholder="Décrivez le problème…"></textarea></div>'+
-  '<button class="btn btn--red" id="btnRapp">Envoyer le signalement</button></div>'+
-  '<div class="card"><h3 class="h">File de modération ('+DB.rapports.filter(r=>r.statut==="ouvert").length+' ouverts)</h3>'+
-  (DB.rapports.length===0?'<p class="muted small">Aucun signalement.</p>':DB.rapports.map(r=>{
-    const l=DB.liens.find(x=>x.id===r.linkId);
-    const actions=r.statut==="ouvert"?(can("rapport")?'<button class="btn btn--green btn--sm" data-rappok="'+r.id+'">Traité</button> <button class="btn btn--ghost btn--sm" data-rappko="'+r.id+'">Ignorer</button>':'<span class="b b-gold">ouvert</span>'):'<span class="b b-grey">'+esc(r.statut)+'</span>';
-    return '<div class="kv"><span><b>'+esc(r.type)+'</b> — '+esc(l?l.titre:"?")+'<br><span class="muted small">'+esc(r.msg)+'</span><br><span class="mono small muted">'+fmtDT(r.ts)+' · '+esc(r.by)+'</span></span><span>'+actions+'</span></div>';
-  }).join(""))+'</div></div>';
+function viewDigest() {
+  return '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">' +
+    '<button class="btn btn--red" id="btnDigest">📰 Générer le digest</button>' +
+    '<button class="btn btn--ghost" id="btnCopyDigest">⧉ Copier (Markdown)</button>' +
+    '<button class="btn btn--ghost" id="btnExportDigest">⤓ Exporter (.md)</button></div>' +
+    '<div class="card" id="digestBox"><p class="muted small">Cliquez sur « Générer le digest ».</p></div>';
+}
+function renderDigest() {
+  const box = $('#digestBox'); if (!box) return;
+  const pubs = DB.inbox.filter(i => i.statut === 'publiee');
+  let html = '<p class="small muted">Généré le ' + (DB.settings.lastDigest ? fmtDT(DB.settings.lastDigest) : '—') + ' · ' + pubs.length + ' analyses publiées.</p>';
+  OEUVRES.forEach(o => {
+    const items = pubs.filter(i => i.oeuvreIds.indexOf(o.id) >= 0);
+    if (items.length) {
+      html += '<h3 class="h" style="margin-top:12px">📖 ' + esc(o.titre) + ' <span class="muted small">(' + esc(o.auteur) + ')</span></h3>';
+      items.forEach(i => {
+        html += '<div class="kv"><span>• <a href="' + esc(i.url) + '" target="_blank" rel="noopener noreferrer">' + esc(i.titre) + '</a> <span class="b b-outline">' + esc(i.format) + '</span></span><span class="mono small muted">via ' + esc(i.source) + '</span></div>';
+      });
+    }
+  });
+  box.innerHTML = html;
 }
 
-function viewCandidats(){
-  const pend=DB.candidats.filter(c=>c.statut==="pendant");
-  const treated=DB.candidats.filter(c=>c.statut!=="pendant");
-  return '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap"><button class="btn btn--red" id="btnDetectSources">🔍 Détecter de nouvelles sources candidates</button><span class="small muted" style="align-self:center">Ajoute des sources détectées à la file d\'approbation.</span></div>'+
-  '<h2 class="section">En attente d\'approbation ('+pend.length+')</h2>'+
-  (pend.length===0?'<div class="empty">Aucune source candidate. Cliquez sur « Détecter ».</div>':pend.map(c=>{
-    const dis=can("approve")?"":" disabled";
-    return '<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><b style="font-family:\'Fraunces\'">'+esc(c.nom)+'</b><span class="b b-outline">'+esc(c.type)+'</span><span class="b b-ink">Pré-score '+c.score+'</span><span style="flex:1"></span><span class="mono muted small">'+fmtDT(c.ts)+'</span></div>'+
-    '<p class="small muted" style="margin-top:6px">'+esc(c.raison)+'</p><div class="mono small muted" style="margin-top:5px">'+esc(c.feed)+'</div>'+
-    '<div class="actions-row"><button class="btn btn--green btn--sm" data-approve="'+c.id+'"'+dis+'>✓ Approuver</button><button class="btn btn--ghost btn--sm" data-refuse="'+c.id+'"'+dis+'>✕ Refuser</button></div></div>';
-  }).join(""))+
-  '<h2 class="section">Historique des décisions</h2>'+
-  (treated.length===0?'<p class="small muted">Aucune décision.</p>':treated.map(c=>'<div class="kv"><span><b>'+esc(c.nom)+'</b></span><span class="b '+(c.statut==="approuvee"?"b-green":"b-grey")+'">'+(c.statut==="approuvee"?"Approuvée":"Refusée")+'</span></div>').join(""));
+function viewRapports() {
+  return '<div class="grid grid-2">' +
+    '<div class="card"><h3 class="h">🚨 Signaler un problème</h3>' +
+    '<div class="field"><label>Ressource concernée</label><select id="rappLink">' + DB.liens.map(l => '<option value="' + l.id + '">' + esc(l.titre) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label>Type</label><select id="rappType"><option>Lien mort</option><option>Contenu obsolète</option><option>Erreur pédagogique</option><option>Hors programme</option><option>Autre</option></select></div>' +
+    '<div class="field"><label>Description</label><textarea id="rappMsg" rows="3" placeholder="Décrivez le problème…"></textarea></div>' +
+    '<button class="btn btn--red" id="btnRapp">Envoyer le signalement</button></div>' +
+    '<div class="card"><h3 class="h">File de modération (' + DB.rapports.filter(r => r.statut === 'ouvert').length + ' ouverts)</h3>' +
+    (DB.rapports.length === 0 ? '<p class="muted small">Aucun signalement.</p>' : DB.rapports.map(r => {
+      const l = DB.liens.find(x => x.id === r.linkId);
+      const actions = r.statut === 'ouvert'
+        ? (can('rapport') ? '<button class="btn btn--green btn--sm" data-rappok="' + r.id + '">Traité</button> <button class="btn btn--ghost btn--sm" data-rappko="' + r.id + '">Ignorer</button>' : '<span class="b b-gold">ouvert</span>')
+        : '<span class="b b-grey">' + esc(r.statut) + '</span>';
+      return '<div class="kv"><span><b>' + esc(r.type) + '</b> — ' + esc(l ? l.titre : '?') + '<br><span class="muted small">' + esc(r.msg) + '</span><br><span class="mono small muted">' + fmtDT(r.ts) + ' · ' + esc(r.by) + '</span></span><span>' + actions + '</span></div>';
+    }).join('')) + '</div></div>';
 }
 
-function viewDiagnostic(){
-  return '<div class="card"><h3 class="h">🧪 Tests automatiques</h3>'+
-  '<p class="small muted" style="margin-bottom:12px">Ce module vérifie que chaque sous-système fonctionne : stockage, référentiel, étiquetage, dédoublonnage, score, permissions, contrôle de lien, flux réels, digest, export. Lancez-le après chaque rechargement pour confirmer que tout est opérationnel.</p>'+
-  '<button class="btn btn--red" id="btnDiag">▶ Lancer les 11 tests</button>'+
-  '<div id="diagResults" style="margin-top:14px"></div></div>'+
-  '<div class="card small" style="line-height:1.8"><b>Interprétation :</b><br>• <span class="b b-green">✓</span> module opérationnel · <span class="b b-red">✗</span> module défaillant.<br>• Le test « Stockage » indique <b>localStorage</b> ou <b>mémoire</b> : dans un aperçu sandbox, la persistance peut être désactivée (fallback mémoire) sans bloquer les fonctions.<br>• Le test « Contrôle d\'un lien » force le mode Simulation pour être déterministe.</div>';
+function viewCandidats() {
+  const pend = DB.candidats.filter(c => c.statut === 'pendant');
+  const treated = DB.candidats.filter(c => c.statut !== 'pendant');
+  return '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap"><button class="btn btn--red" id="btnDetectSources">🔍 Détecter de nouvelles sources candidates</button><span class="small muted" style="align-self:center">Ajoute des sources détectées à la file d\'approbation.</span></div>' +
+    '<h2 class="section">En attente d\'approbation (' + pend.length + ')</h2>' +
+    (pend.length === 0 ? '<div class="empty">Aucune source candidate. Cliquez sur « Détecter ».</div>' : pend.map(c => {
+      const dis = can('approve') ? '' : ' disabled';
+      return '<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><b style="font-family:\'Fraunces\'">' + esc(c.nom) + '</b><span class="b b-outline">' + esc(c.type) + '</span><span class="b b-ink">Pré-score ' + c.score + '</span><span style="flex:1"></span><span class="mono muted small">' + fmtDT(c.ts) + '</span></div>' +
+        '<p class="small muted" style="margin-top:6px">' + esc(c.raison) + '</p><div class="mono small muted" style="margin-top:5px">' + esc(c.feed) + '</div>' +
+        '<div class="actions-row"><button class="btn btn--green btn--sm" data-approve="' + c.id + '"' + dis + '>✓ Approuver</button><button class="btn btn--ghost btn--sm" data-refuse="' + c.id + '"' + dis + '>✕ Refuser</button></div></div>';
+    }).join('')) +
+    '<h2 class="section">Historique des décisions</h2>' +
+    (treated.length === 0 ? '<p class="small muted">Aucune décision.</p>' : treated.map(c => '<div class="kv"><span><b>' + esc(c.nom) + '</b></span><span class="b ' + (c.statut === 'approuvee' ? 'b-green' : 'b-grey') + '">' + (c.statut === 'approuvee' ? 'Approuvée' : 'Refusée') + '</span></div>').join(''));
 }
 
-function viewSecurite(){
-  const permsList=Object.entries(PERMS).map(([r,p])=>'<div class="kv"><span><b>'+roleName[r]+'</b></span><span class="small muted">'+p.join(", ")+'</span></div>').join("");
-  const disImport=can("import")?"":" disabled";
-  const disReset=can("reset")?"":" disabled";
-  return '<div class="grid grid-2">'+
-  '<div class="card"><h3 class="h">🔐 Rôles & permissions</h3><p class="small muted" style="margin-bottom:8px">Rôle actif : <b>'+roleName[DB.role]+'</b>. Changez le rôle en bas de la barre latérale pour tester les verrous.</p>'+permsList+'</div>'+
-  '<div class="card"><h3 class="h">💾 Données & sauvegarde</h3><p class="small muted" style="margin-bottom:10px">Stockage <b>'+(Storage.persistent?"local (localStorage)":"en mémoire (non persistant)")+'</b>. Exportez pour versionner ; l\'import restaure (Administrateur).</p>'+
-  '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn--green" id="btnExport">⤓ Exporter (JSON)</button><button class="btn btn--ghost" id="btnImport"'+disImport+'>⤒ Importer</button><button class="btn btn--red" id="btnReset"'+disReset+'>⟲ Réinitialiser</button><input type="file" id="fileImport" accept=".json" hidden></div>'+
-  '<div class="kv" style="margin-top:12px"><span>Entrées d\'audit</span><b>'+DB.audit.length+'</b></div>'+
-  '<div class="kv"><span>Empreintes (dédoublonnage)</span><b>'+Object.keys(DB.fingerprints).length+'</b></div>'+
-  '<div class="kv"><span>Collectes réalisées</span><b>'+DB.collectes.length+'</b></div>'+
-  '<div class="kv"><span>Sources actives (flux)</span><b>'+SOURCES.length+'</b></div>'+
-  '<div class="kv"><span>Flux réels configurés</span><b>'+REAL_FEEDS.length+'</b></div></div></div>'+
-  '<h2 class="section">Chemin vers la production</h2><div class="card small" style="line-height:1.8">Maquette <b>100% fonctionnelle côté client</b>. Déployée sur Vercel avec <span class="mono">api/check-link.js</span> et <span class="mono">api/collect.js</span>, le mode réseau réel est actif. Transposition ultérieure : cron serveur (Vercel Cron), base de données (Vercel KV / Supabase), authentification réelle.</div>';
+function viewDiagnostic() {
+  return '<div class="card"><h3 class="h">🧪 Tests automatiques</h3>' +
+    '<p class="small muted" style="margin-bottom:12px">Ce module vérifie que chaque sous-système fonctionne, y compris les appels réels aux fonctions serveur <span class="mono">/api/check-link</span> et <span class="mono">/api/collect</span>. <b>Lance-le après chaque déploiement Vercel.</b></p>' +
+    '<button class="btn btn--red" id="btnDiag">▶ Lancer les 12 tests</button>' +
+    '<div id="diagResults" style="margin-top:14px"></div></div>' +
+    '<div class="card small" style="line-height:1.8"><b>Interprétation :</b><br>• <span class="b b-green">✓</span> module opérationnel · <span class="b b-red">✗</span> module défaillant.<br>• Les tests « Connectivité Supabase », « /api/check-link » et « /api/collect » ne réussissent que <b>après déploiement sur Vercel</b>.<br>• Le test « Contrôle d\'un lien (simulation) » force le mode Simulation pour être déterministe.</div>';
+}
+
+function viewSecurite() {
+  const permsList = Object.entries(PERMS).map(([r, p]) =>
+    '<div class="kv"><span><b>' + roleName[r] + '</b></span><span class="small muted">' + p.join(', ') + '</span></div>'
+  ).join('');
+  const disImport = can('import') ? '' : ' disabled';
+  const disReset = can('reset') ? '' : ' disabled';
+  return '<div class="grid grid-2">' +
+    '<div class="card"><h3 class="h">🔐 Rôles & permissions</h3><p class="small muted" style="margin-bottom:8px">Rôle actif : <b>' + roleName[DB.role] + '</b>. Changez le rôle en bas de la barre latérale pour tester les verrous.</p>' + permsList + '</div>' +
+    '<div class="card"><h3 class="h">💾 Données & sauvegarde</h3><p class="small muted" style="margin-bottom:10px">Stockage : <b>' + (Storage.backend === 'supabase' ? 'Supabase (distant)' : 'mémoire (non persistant)') + '</b>. Exportez régulièrement pour versionner.</p>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn--green" id="btnExport">⤓ Exporter (JSON)</button><button class="btn btn--ghost" id="btnImport"' + disImport + '>⤒ Importer</button><button class="btn btn--red" id="btnReset"' + disReset + '>⟲ Réinitialiser</button><input type="file" id="fileImport" accept=".json" hidden></div>' +
+    '<div class="kv" style="margin-top:12px"><span>Entrées d\'audit</span><b>' + DB.audit.length + '</b></div>' +
+    '<div class="kv"><span>Empreintes (dédoublonnage)</span><b>' + Object.keys(DB.fingerprints).length + '</b></div>' +
+    '<div class="kv"><span>Collectes réalisées</span><b>' + DB.collectes.length + '</b></div>' +
+    '<div class="kv"><span>Sources actives</span><b>' + SOURCES.length + '</b></div>' +
+    '<div class="kv"><span>Flux réels configurés</span><b>' + REAL_FEEDS.length + '</b></div></div></div>' +
+    '<h2 class="section">Chemin vers la production</h2><div class="card small" style="line-height:1.8">Maquette <b>100% fonctionnelle côté client</b>. Déployée sur Vercel avec <span class="mono">api/check-link.js</span>, <span class="mono">api/collect.js</span>, <span class="mono">api/load-data.js</span> et <span class="mono">api/save-data.js</span>, le mode réseau réel est actif et les données persistent dans Supabase. Prochaines étapes : Vercel Cron pour la collecte automatique, authentification réelle (SSO éducatif).</div>';
 }
 
 /* ---------- 14. EXPORT / IMPORT ---------- */
-function exportJSON(){ const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="curation-eaf-backup.json"; a.click(); URL.revokeObjectURL(a.href); audit("Export","Sauvegarde JSON exportée."); toast("Export téléchargé.","ok"); }
-function importJSON(file){ if(!file)return; const rd=new FileReader(); rd.onload=function(){ try{ const obj=JSON.parse(rd.result); if(!obj||obj.version!==3||!obj.liens)throw new Error("format"); DB=obj; save(); audit("Import","Base restaurée depuis une sauvegarde."); toast("Import réussi.","ok"); refreshCounts(); render(); }catch(e){ toast("Fichier invalide.","err"); } }; rd.readAsText(file); }
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'curation-eaf-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  audit('Export', 'Sauvegarde JSON exportée.');
+  toast('Export téléchargé.', 'ok');
+}
+function importJSON(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = function () {
+    try {
+      const obj = JSON.parse(rd.result);
+      if (!obj || obj.version !== 3 || !obj.liens) throw new Error('format');
+      DB = obj; save();
+      audit('Import', 'Base restaurée depuis une sauvegarde.');
+      toast('Import réussi.', 'ok');
+      refreshCounts(); render();
+    } catch (e) {
+      toast('Fichier invalide.', 'err');
+    }
+  };
+  rd.readAsText(file);
+}
 
 /* ---------- 15. ÉVÉNEMENTS (délégation défensive) ---------- */
-$("#nav").addEventListener("click",function(e){ const b=e.target.closest("[data-view]"); if(b)setView(b.dataset.view); });
-$("#rolePick").addEventListener("change",function(e){ DB.role=e.target.value; save(); audit("Changement de rôle","Rôle actif : "+roleName[DB.role]); toast("Rôle : "+roleName[DB.role]); render(); });
-$("#btnCollectNow").addEventListener("click",function(){ runCollect("manuelle"); });
-$("#btnLinksNow").addEventListener("click",function(){ runLinkCheck(12); });
+function setupListeners() {
+  $('#nav').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view);
+  });
+  $('#rolePick').addEventListener('change', function (e) {
+    DB.role = e.target.value; save();
+    audit('Changement de rôle', 'Rôle actif : ' + roleName[DB.role]);
+    toast('Rôle : ' + roleName[DB.role]); render();
+  });
+  $('#btnCollectNow').addEventListener('click', function () { runCollect('manuelle'); });
+  $('#btnLinksNow').addEventListener('click', function () { runLinkCheck(12); });
 
-document.addEventListener("click",function(e){
-  try{
-    let el;
-    if((el=e.target.closest("[data-move]"))){ moveItem(el.dataset.move,el.dataset.to); return; }
-    if((el=e.target.closest("[data-test]"))){ const l=DB.liens.find(x=>x.id===el.dataset.test); if(l)checkLink(l).then(function(){ save(); renderLiensTable(); }); return; }
-    if((el=e.target.closest("[data-lf]"))){ lienFiltre=el.dataset.lf; render(); return; }
-    if((el=e.target.closest("[data-if]"))){ inboxFiltre=el.dataset.if; render(); return; }
-    if((el=e.target.closest("[data-rappok]"))){ const r=DB.rapports.find(x=>x.id===el.dataset.rappok); if(r){ r.statut="traité"; audit("Signalement traité",r.type); save(); render(); refreshCounts(); } return; }
-    if((el=e.target.closest("[data-rappko]"))){ const r=DB.rapports.find(x=>x.id===el.dataset.rappko); if(r){ r.statut="ignoré"; save(); render(); refreshCounts(); } return; }
-    if((el=e.target.closest("[data-approve]"))){ approveSource(el.dataset.approve,true); return; }
-    if((el=e.target.closest("[data-refuse]"))){ approveSource(el.dataset.refuse,false); return; }
-    if(e.target.closest("#btnCheckLot")){ runLinkCheck(12); return; }
-    if(e.target.closest("#btnCollectNow2")){ runCollect("manuelle"); return; }
-    if(e.target.closest("#btnStartSched")){ const fi=$("#freqInput"); DB.settings.freq=Math.max(1,parseInt(fi?fi.value:DB.settings.freq,10)||30); startSched(); render(); return; }
-    if(e.target.closest("#btnStopSched")){ stopSched(); audit("Planificateur","Arrêté."); toast("Planificateur arrêté."); render(); return; }
-    if(e.target.closest("#btnWatchBO")){ watchBO(); return; }
-    if(e.target.closest("#btnDetectSources")){ detectSources(); return; }
-    if(e.target.closest("#btnDigest")){ DB.settings.lastDigest=nowISO(); audit("Digest","Généré."); save(); renderDigest(); toast("Digest généré.","ok"); return; }
-    if(e.target.closest("#btnCopyDigest")){ navigator.clipboard.writeText(buildDigest()).then(function(){toast("Digest copié (Markdown).","ok");}).catch(function(){toast("Copie impossible.","err");}); return; }
-    if(e.target.closest("#btnExportDigest")){ const blob=new Blob([buildDigest()],{type:"text/markdown"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="digest-eaf.md"; a.click(); URL.revokeObjectURL(a.href); toast("Digest exporté.","ok"); return; }
-    if(e.target.closest("#btnRapp")){ const linkId=$("#rappLink").value, type=$("#rappType").value, msg=$("#rappMsg").value.trim(); if(!msg){toast("Précisez la description.","err");return;} DB.rapports.unshift({id:uid(),ts:nowISO(),linkId,type,msg,by:roleName[DB.role],statut:"ouvert"}); const lk=DB.liens.find(l=>l.id===linkId); audit("Signalement",type+" sur "+(lk?lk.titre:linkId)); save(); render(); refreshCounts(); toast("Signalement enregistré.","ok"); return; }
-    if(e.target.closest("#btnDiag")){ runDiagnostics(); return; }
-    if(e.target.closest("#btnExport")){ exportJSON(); return; }
-    if(e.target.closest("#btnImport")){ if(can("import"))$("#fileImport").click(); else toast("Réservé à l'Administrateur.","err"); return; }
-    if(e.target.closest("#btnReset")){ if(can("reset")&&confirm("Réinitialiser toute la base de curation ?")){ Storage.clear(); location.reload(); } return; }
-  }catch(err){ toast("Erreur : "+err.message,"err"); }
-});
+  document.addEventListener('click', function (e) {
+    try {
+      let el;
+      if ((el = e.target.closest('[data-move]'))) { moveItem(el.dataset.move, el.dataset.to); return; }
+      if ((el = e.target.closest('[data-test]'))) {
+        const l = DB.liens.find(x => x.id === el.dataset.test);
+        if (l) checkLink(l).then(function () { save(); renderLiensTable(); });
+        return;
+      }
+      if ((el = e.target.closest('[data-lf]'))) { lienFiltre = el.dataset.lf; render(); return; }
+      if ((el = e.target.closest('[data-if]'))) { inboxFiltre = el.dataset.if; render(); return; }
+      if ((el = e.target.closest('[data-rappok]'))) {
+        const r = DB.rapports.find(x => x.id === el.dataset.rappok);
+        if (r) { r.statut = 'traité'; audit('Signalement traité', r.type); save(); render(); refreshCounts(); }
+        return;
+      }
+      if ((el = e.target.closest('[data-rappko]'))) {
+        const r = DB.rapports.find(x => x.id === el.dataset.rappko);
+        if (r) { r.statut = 'ignoré'; save(); render(); refreshCounts(); }
+        return;
+      }
+      if ((el = e.target.closest('[data-approve]'))) { approveSource(el.dataset.approve, true); return; }
+      if ((el = e.target.closest('[data-refuse]'))) { approveSource(el.dataset.refuse, false); return; }
+      if (e.target.closest('#btnCheckLot')) { runLinkCheck(12); return; }
+      if (e.target.closest('#btnCollectNow2')) { runCollect('manuelle'); return; }
+      if (e.target.closest('#btnStartSched')) {
+        const fi = $('#freqInput');
+        DB.settings.freq = Math.max(1, parseInt(fi ? fi.value : DB.settings.freq, 10) || 30);
+        startSched(); render(); return;
+      }
+      if (e.target.closest('#btnStopSched')) {
+        stopSched(); audit('Planificateur', 'Arrêté.'); toast('Planificateur arrêté.'); render(); return;
+      }
+      if (e.target.closest('#btnWatchBO')) { watchBO(); return; }
+      if (e.target.closest('#btnDetectSources')) { detectSources(); return; }
+      if (e.target.closest('#btnDigest')) {
+        DB.settings.lastDigest = nowISO(); audit('Digest', 'Généré.'); save(); renderDigest(); toast('Digest généré.', 'ok'); return;
+      }
+      if (e.target.closest('#btnCopyDigest')) {
+        navigator.clipboard.writeText(buildDigest()).then(
+          function () { toast('Digest copié (Markdown).', 'ok'); },
+          function () { toast('Copie impossible.', 'err'); }
+        ); return;
+      }
+      if (e.target.closest('#btnExportDigest')) {
+        const blob = new Blob([buildDigest()], { type: 'text/markdown' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'digest-eaf.md'; a.click();
+        URL.revokeObjectURL(a.href);
+        toast('Digest exporté.', 'ok'); return;
+      }
+      if (e.target.closest('#btnRapp')) {
+        const linkId = $('#rappLink').value, type = $('#rappType').value, msg = $('#rappMsg').value.trim();
+        if (!msg) { toast('Précisez la description.', 'err'); return; }
+        DB.rapports.unshift({ id: uid(), ts: nowISO(), linkId, type, msg, by: roleName[DB.role], statut: 'ouvert' });
+        const lk = DB.liens.find(l => l.id === linkId);
+        audit('Signalement', type + ' sur ' + (lk ? lk.titre : linkId));
+        save(); render(); refreshCounts(); toast('Signalement enregistré.', 'ok'); return;
+      }
+      if (e.target.closest('#btnDiag')) { runDiagnostics(); return; }
+      if (e.target.closest('#btnExport')) { exportJSON(); return; }
+      if (e.target.closest('#btnImport')) {
+        if (can('import')) $('#fileImport').click(); else toast('Réservé à l\'Administrateur.', 'err');
+        return;
+      }
+      if (e.target.closest('#btnReset')) {
+        if (can('reset') && confirm('Réinitialiser toute la base de curation ? (Supabase écrasé au prochain save)')) {
+          DB = seed(); save(); toast('Base réinitialisée.', 'ok'); render(); refreshCounts();
+        }
+        return;
+      }
+    } catch (err) {
+      toast('Erreur : ' + err.message, 'err');
+    }
+  });
 
-document.addEventListener("change",function(e){
-  try{
-    if(e.target.id==="swCollect"){ DB.settings.autoCollect=e.target.checked; save(); audit("Réglage","Collecte auto : "+(e.target.checked?"on":"off")); }
-    if(e.target.id==="swLinks"){ DB.settings.autoLinks=e.target.checked; save(); audit("Réglage","Liens auto : "+(e.target.checked?"on":"off")); }
-    if(e.target.id==="swTestMode"){ DB.settings.testMode=e.target.checked; save(); audit("Réglage","Mode test : "+(e.target.checked?"simulation":"réseau réel")); toast("Mode "+(e.target.checked?"Simulation":"Réseau réel")+" activé."); }
-    if(e.target.id==="freqInput"){ DB.settings.freq=Math.max(1,parseInt(e.target.value,10)||30); save(); if(DB.settings.actif)startSched(); }
-    if(e.target.id==="fileImport"){ importJSON(e.target.files[0]); e.target.value=""; }
-  }catch(err){ toast("Erreur : "+err.message,"err"); }
-});
-
-/* ---------- 16. INIT PROTÉGÉE ---------- */
-try{
-  load();
-  $("#rolePick").value=DB.role;
-  updateStorageTag();
-  refreshCounts();
-  setView("dashboard");
-  if(DB.settings.actif){ DB.settings.actif=false; save(); }
-}catch(err){
-  document.getElementById("view").innerHTML='<div class="fatal"><h2 style="font-family:Fraunces;margin-bottom:8px">⚠️ Erreur d\'initialisation</h2><p>'+esc(err.message)+'</p><button class="btn btn--red" style="margin-top:12px" onclick="localStorage.removeItem(\'bacfr_curation_v3\');location.reload()">⟲ Réparer (réinitialiser)</button></div>';
+  document.addEventListener('change', function (e) {
+    try {
+      if (e.target.id === 'swCollect') { DB.settings.autoCollect = e.target.checked; save(); audit('Réglage', 'Collecte auto : ' + (e.target.checked ? 'on' : 'off')); }
+      if (e.target.id === 'swLinks') { DB.settings.autoLinks = e.target.checked; save(); audit('Réglage', 'Liens auto : ' + (e.target.checked ? 'on' : 'off')); }
+      if (e.target.id === 'swTestMode') {
+        DB.settings.testMode = e.target.checked; save();
+        audit('Réglage', 'Mode test : ' + (e.target.checked ? 'simulation' : 'réseau réel'));
+        toast('Mode ' + (e.target.checked ? 'Simulation' : 'Réseau réel') + ' activé.');
+      }
+      if (e.target.id === 'freqInput') {
+        DB.settings.freq = Math.max(1, parseInt(e.target.value, 10) || 30); save();
+        if (DB.settings.actif) startSched();
+      }
+      if (e.target.id === 'fileImport') { importJSON(e.target.files[0]); e.target.value = ''; }
+    } catch (err) {
+      toast('Erreur : ' + err.message, 'err');
+    }
+  });
 }
+
+/* ---------- 16. INIT ASYNCHRONE (Supabase) ---------- */
+(async function () {
+  try {
+    setupListeners();
+    const savedState = await Storage.init();
+    if (savedState && savedState.version === 3 && Array.isArray(savedState.liens)) {
+      DB = savedState;
+    } else {
+      DB = seed();
+      Storage.write(DB);
+    }
+    $('#rolePick').value = DB.role;
+    updateStorageTag();
+    refreshCounts();
+    setView('dashboard');
+    if (DB.settings.actif) {
+      DB.settings.actif = false;
+      save();
+    }
+  } catch (err) {
+    document.getElementById('view').innerHTML =
+      '<div class="fatal"><h2 style="font-family:Fraunces;margin-bottom:8px">⚠️ Erreur d\'initialisation</h2>' +
+      '<p>' + esc(err.message) + '</p>' +
+      '<p class="small muted" style="margin-top:12px">Vérifiez que les variables <span class="mono">SUPABASE_URL</span> et <span class="mono">SUPABASE_ANON_KEY</span> sont configurées dans Vercel, et que le schéma SQL a été exécuté dans Supabase.</p>' +
+      '<button class="btn btn--red" style="margin-top:12px" onclick="location.reload()">⟲ Réessayer</button></div>';
+  }
+})();
 </script>
 </body>
 </html>
