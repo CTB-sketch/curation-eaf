@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BacFrançais.io — Console de curation EAF (v4 · Supabase)</title>
+<title>BacFrançais.io — Console de curation EAF (v4.1 · logs)</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%23C22F21"/><text x="16" y="23" font-family="Georgia" font-size="19" font-weight="bold" fill="%23FCFAF3" text-anchor="middle">B</text></svg>'>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,600&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -105,7 +105,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4</small></div></div>
+    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.1</small></div></div>
     <nav class="nav" id="nav">
       <button data-view="dashboard" class="on">📊 Tableau de bord</button>
       <button data-view="liens">🔗 Surveillance des liens <span class="count" id="cLiens">0</span></button>
@@ -152,10 +152,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <script>
 "use strict";
 /* ================================================================
-   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v4 (Supabase + réseau réel)
+   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v4.1 (avec logs de debug)
    ================================================================ */
 
-/* ---------- 1. STOCKAGE SUPABASE (avec fallback mémoire) ---------- */
+/* ============================================================
+   1. STOCKAGE SUPABASE AVEC LOGS DÉTAILLÉS (pour diagnostic)
+   Ouvre la console navigateur (F12) pour voir les [Storage.*]
+   ============================================================ */
 const Storage = {
   persistent: true,
   backend: 'supabase',
@@ -164,46 +167,63 @@ const Storage = {
   _lastSavedJson: null,
 
   async init() {
+    console.log('[Storage.init] 🔄 Chargement depuis Supabase...');
     try {
       const resp = await fetch('/api/load-data');
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      console.log('[Storage.init] Réponse HTTP reçue :', resp.status, resp.statusText);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
       const payload = await resp.json();
+      console.log('[Storage.init] Payload reçu :', payload);
+
       if (payload && payload.state && payload.state.version === 3) {
         this._memData = payload.state;
         this._lastSavedJson = JSON.stringify(payload.state);
+        console.log('[Storage.init] ✅ État chargé avec succès depuis Supabase');
+        console.log('[Storage.init] Nombre de liens :', payload.state.liens.length);
+        console.log('[Storage.init] Nombre d\'items inbox :', payload.state.inbox.length);
         return this._memData;
       }
-      throw new Error('État Supabase invalide');
+      throw new Error('État Supabase invalide (version manquante ou != 3)');
     } catch (e) {
-      console.warn('[Storage] Supabase indisponible, fallback mémoire :', e.message);
+      console.warn('[Storage.init] ❌ Supabase indisponible, fallback mémoire :', e.message);
       this.persistent = false;
       this.backend = 'memory';
       return null;
     }
   },
 
-  read() { return this._memData; },
+  read() {
+    return this._memData;
+  },
 
   write(v) {
+    console.log('[Storage.write] 📝 Sauvegarde programmée (debounce 1s)...');
     this._memData = v;
     if (this._saveTimeout) clearTimeout(this._saveTimeout);
     this._saveTimeout = setTimeout(async () => {
       try {
         const json = JSON.stringify(v);
-        // Éviter les sauvegardes redondantes
-        if (json === this._lastSavedJson) return;
+        if (json === this._lastSavedJson) {
+          console.log('[Storage.write] ⚠️ Pas de changement détecté, sauvegarde ignorée (identique à la dernière sauvegarde)');
+          return;
+        }
+        console.log('[Storage.write] 📤 Envoi vers /api/save-data... (taille JSON :', json.length, 'octets)');
         const resp = await fetch('/api/save-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: json
         });
+        console.log('[Storage.write] Réponse HTTP :', resp.status, resp.statusText);
         if (resp.ok) {
           this._lastSavedJson = json;
+          console.log('[Storage.write] ✅ Sauvegarde réussie dans Supabase');
         } else {
-          console.error('[Storage] Sauvegarde échouée : HTTP ' + resp.status);
+          console.error('[Storage.write] ❌ Sauvegarde échouée : HTTP ' + resp.status);
+          const errText = await resp.text();
+          console.error('[Storage.write] Détails de l\'erreur :', errText);
         }
       } catch (e) {
-        console.error('[Storage] Erreur sauvegarde :', e);
+        console.error('[Storage.write] ❌ Erreur réseau ou exception :', e);
       }
     }, 1000);
   },
@@ -224,7 +244,9 @@ const fmtDT = iso => {
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-/* ---------- 2. DONNÉES DE RÉFÉRENCE ---------- */
+/* ============================================================
+   2. DONNÉES DE RÉFÉRENCE
+   ============================================================ */
 const OBJETS = {
   poesie: { l: 'Poésie', c: 'b-poesie' },
   idees:  { l: "Littérature d'idées", c: 'b-idees' },
@@ -251,7 +273,6 @@ const OEUVRES = [
  { id: 'lagarce', titre: 'Juste la fin du monde', auteur: 'Jean-Luc Lagarce', objet: 'theatre', voie: 'T', parcours: 'Crise familiale, crise de la parole', statut: 'Au programme', session: '2025-2026', kw: ['juste la fin du monde', 'lagarce'] }
 ];
 
-/* Sources whitelist (pour scoring, non pour collecte réelle) */
 const SOURCES = [
  { id: 'lumni', nom: 'Lumni', feed: 'https://www.lumni.fr/lycee/premiere/bac/revisions-du-bac-francais', actif: true },
  { id: 'franceculture', nom: 'France Culture', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres', actif: true },
@@ -267,11 +288,6 @@ const SOURCES = [
  { id: 'pinel', nom: 'Passe ton bac de français d\'abord', feed: 'https://podcasts.apple.com/fr/podcast/passe-ton-bac-de-francais-dabord/id1559609050', actif: true }
 ];
 
-/* ★ Flux RSS RÉELS pour la collecte (mode réseau réel)
-   Ces URLs sont interrogées par /api/collect.js via rss-parser.
-   Les flux Apple Podcasts renvoient parfois des pages HTML : si le journal
-   indique "flux inaccessible", remplace l'URL par le flux RSS hébergé
-   sur la plateforme d'hébergement du podcast (Acast, Audiomeans, RSS.com…). */
 const REAL_FEEDS = [
   { id: 'franceculture-oeuvre', nom: 'France Culture — La Compagnie des œuvres',
     feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss' },
@@ -281,11 +297,8 @@ const REAL_FEEDS = [
     feed: 'https://www.radiofrance.fr/franceculture/podcasts/en-francais-dans-le-texte/rss' },
   { id: 'franceinter-masque', nom: 'France Inter — Le Masque et la Plume',
     feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss' }
-  // Ajouter ici : YouTube (https://www.youtube.com/feeds/videos.xml?channel_id=...),
-  // podcasts Acast / Audiomeans / RSS.com, etc.
 ];
 
-/* Gisement de démonstration (mode Simulation) */
 const POOL = [
  { t: 'Explication linéaire : La Peau de chagrin, l\'incipit', s: 'lumni', u: 'https://www.lumni.fr/video/peau-de-chagrin-incipit', f: 'Vidéo', x: 'Analyse pas à pas de l\'ouverture du roman de Balzac.', d: '2026-02-10' },
  { t: 'Lecture linéaire — Ruy Blas, acte I scène 1', s: 'comedie', u: 'https://www.comedie-francaise.fr/actualites/ruy-blas-lecture', f: 'Vidéo', x: 'Mise en voix par la troupe, double énonciation.', d: '2026-02-08' },
@@ -342,7 +355,9 @@ const LIENS_SEED = [
  [20, "Gallica — BnF", "https://gallica.bnf.fr/", "fiable", 8.5, "Archives"]
 ];
 
-/* ---------- 3. ÉTAT ---------- */
+/* ============================================================
+   3. ÉTAT
+   ============================================================ */
 function seed() {
   return {
     version: 3, cree: nowISO(), role: 'admin',
@@ -352,7 +367,7 @@ function seed() {
       ({ id: 'L' + r, rang: r, titre: t, url: u, statut: st, score: sc, type: ty, dernier: null, hist: [] })),
     inbox: [], fingerprints: {}, collectes: [], watch: [], candidats: [], rapports: [],
     audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation',
-              details: 'Base v4 créée (Supabase + collecte réelle).' }],
+              details: 'Base v4.1 créée (Supabase + logs).' }],
     log: []
   };
 }
@@ -373,7 +388,9 @@ function updateStorageTag() {
   }
 }
 
-/* ---------- 4. RÔLES & AUDIT ---------- */
+/* ============================================================
+   4. RÔLES & AUDIT
+   ============================================================ */
 const PERMS = {
  admin: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export','import','reset'],
  editeur: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export'],
@@ -390,7 +407,9 @@ function toast(msg, kind) {
   clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', 3200);
 }
 
-/* ---------- 5. COLLECTE / ÉTIQUETAGE / DÉDOUBLONNAGE / SCORE ---------- */
+/* ============================================================
+   5. COLLECTE / ÉTIQUETAGE / DÉDOUBLONNAGE / SCORE
+   ============================================================ */
 function normFP(url, titre, src) {
   const u = (url || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').replace(/[?#].*$/, '');
   return u || ((titre || '') + '|' + (src || '')).toLowerCase();
@@ -482,7 +501,9 @@ async function runCollect(trigger) {
   save(); refreshCounts(); render();
 }
 
-/* ---------- 6. CONTRÔLE DES LIENS (réel ou simulé) ---------- */
+/* ============================================================
+   6. CONTRÔLE DES LIENS
+   ============================================================ */
 let linkBusy = false;
 async function checkLink(l) {
   let res, detail = null;
@@ -528,7 +549,9 @@ async function runLinkCheck(batch) {
   refreshCounts(); render();
 }
 
-/* ---------- 7. VEILLE BO ---------- */
+/* ============================================================
+   7. VEILLE BO
+   ============================================================ */
 function watchBO() {
   if (!can('watch')) { toast('Rôle insuffisant pour la veille BO.', 'err'); return; }
   const actives = OEUVRES.filter(o => o.statut === 'Au programme');
@@ -548,7 +571,9 @@ function watchBO() {
   save(); refreshCounts(); render();
 }
 
-/* ---------- 8. SOURCES CANDIDATES ---------- */
+/* ============================================================
+   8. SOURCES CANDIDATES
+   ============================================================ */
 function detectSources() {
   if (!can('approve')) { toast('Rôle insuffisant.', 'err'); return; }
   const known = new Set(DB.candidats.map(c => c.id));
@@ -575,7 +600,9 @@ function approveSource(id, ok) {
   save(); refreshCounts(); render();
 }
 
-/* ---------- 9. WORKFLOW ---------- */
+/* ============================================================
+   9. WORKFLOW
+   ============================================================ */
 const TRANSITIONS = {
   candidate: [
     { to: 'en_revue', label: '→ En revue', perm: 'review', cls: 'btn--ink' },
@@ -609,7 +636,9 @@ function moveItem(id, to) {
   save(); toast('« ' + it.titre + ' » → ' + STATUT_LABEL[to] + '.', 'ok'); render();
 }
 
-/* ---------- 10. PLANIFICATEUR ---------- */
+/* ============================================================
+   10. PLANIFICATEUR
+   ============================================================ */
 let schedTimer = null, countTimer = null;
 async function scheduledTick() {
   log('⏰ Exécution planifiée (intervalle ' + DB.settings.freq + ' min).', 'info');
@@ -648,7 +677,9 @@ function updateSchedUI() {
   }
 }
 
-/* ---------- 11. DIGEST ---------- */
+/* ============================================================
+   11. DIGEST
+   ============================================================ */
 function buildDigest() {
   const pubs = DB.inbox.filter(i => i.statut === 'publiee');
   let md = '# Digest EAF — ' + new Date().toLocaleDateString('fr-FR') + '\n\nProgramme : ' + DB.settings.currentProgram + ' · ' + pubs.length + ' analyses publiées.\n\n';
@@ -665,7 +696,9 @@ function buildDigest() {
   return md;
 }
 
-/* ---------- 12. DIAGNOSTIC ---------- */
+/* ============================================================
+   12. DIAGNOSTIC
+   ============================================================ */
 async function runDiagnostics() {
   const box = $('#diagResults'); if (!box) return;
   const btn = $('#btnDiag'); if (btn) btn.disabled = true;
@@ -741,7 +774,9 @@ async function runDiagnostics() {
   if (btn) btn.disabled = false;
 }
 
-/* ---------- 13. RENDU ---------- */
+/* ============================================================
+   13. RENDU
+   ============================================================ */
 let currentView = 'dashboard';
 const TITLES = {
   dashboard: ['📊 Tableau de bord', "Vue d'ensemble : liens, collecte, veille BO, workflow, couverture."],
@@ -1010,7 +1045,9 @@ function viewSecurite() {
     '<h2 class="section">Chemin vers la production</h2><div class="card small" style="line-height:1.8">Maquette <b>100% fonctionnelle côté client</b>. Déployée sur Vercel avec <span class="mono">api/check-link.js</span>, <span class="mono">api/collect.js</span>, <span class="mono">api/load-data.js</span> et <span class="mono">api/save-data.js</span>, le mode réseau réel est actif et les données persistent dans Supabase. Prochaines étapes : Vercel Cron pour la collecte automatique, authentification réelle (SSO éducatif).</div>';
 }
 
-/* ---------- 14. EXPORT / IMPORT ---------- */
+/* ============================================================
+   14. EXPORT / IMPORT
+   ============================================================ */
 function exportJSON() {
   const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1039,7 +1076,9 @@ function importJSON(file) {
   rd.readAsText(file);
 }
 
-/* ---------- 15. ÉVÉNEMENTS (délégation défensive) ---------- */
+/* ============================================================
+   15. ÉVÉNEMENTS (délégation défensive)
+   ============================================================ */
 function setupListeners() {
   $('#nav').addEventListener('click', function (e) {
     const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view);
@@ -1149,14 +1188,19 @@ function setupListeners() {
   });
 }
 
-/* ---------- 16. INIT ASYNCHRONE (Supabase) ---------- */
+/* ============================================================
+   16. INIT ASYNCHRONE (Supabase + logs)
+   ============================================================ */
 (async function () {
   try {
     setupListeners();
+    console.log('[INIT] 🚀 Démarrage de l\'application...');
     const savedState = await Storage.init();
     if (savedState && savedState.version === 3 && Array.isArray(savedState.liens)) {
+      console.log('[INIT] ✅ État existant chargé depuis Supabase');
       DB = savedState;
     } else {
+      console.log('[INIT] 🆕 Aucun état trouvé, création d\'une base initiale');
       DB = seed();
       Storage.write(DB);
     }
@@ -1168,7 +1212,9 @@ function setupListeners() {
       DB.settings.actif = false;
       save();
     }
+    console.log('[INIT] ✅ Application prête');
   } catch (err) {
+    console.error('[INIT] ❌ Erreur critique :', err);
     document.getElementById('view').innerHTML =
       '<div class="fatal"><h2 style="font-family:Fraunces;margin-bottom:8px">⚠️ Erreur d\'initialisation</h2>' +
       '<p>' + esc(err.message) + '</p>' +
