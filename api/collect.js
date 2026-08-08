@@ -1,4 +1,4 @@
-   import Parser from 'rss-parser'
+import Parser from 'rss-parser'
 
 const parser = new Parser({
   timeout: 12000,
@@ -6,8 +6,12 @@ const parser = new Parser({
 })
 
 export default async function handler(req, res) {
-  const { feed } = req.query
   res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  if (req.method === 'OPTIONS') return res.status(200).end()
+
+  const { feed } = req.query
   if (!feed) return res.status(400).json({ error: "Paramètre 'feed' requis" })
 
   try {
