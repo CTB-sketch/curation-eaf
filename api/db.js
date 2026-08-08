@@ -1,12 +1,11 @@
-// api/db.js — Client Supabase partagé par les autres fonctions
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('[db] SUPABASE_URL ou SUPABASE_ANON_KEY manquantes')
-  throw new Error('Variables Supabase absentes')
+  console.error('[db] Variables Supabase manquantes')
+  throw new Error('SUPABASE_URL ou SUPABASE_ANON_KEY absent')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
