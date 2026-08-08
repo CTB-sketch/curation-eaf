@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BacFrançais.io — Console de curation EAF (v4.1 · logs)</title>
+<title>BacFrançais.io — Console de curation EAF (v4.2 · correctifs)</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%23C22F21"/><text x="16" y="23" font-family="Georgia" font-size="19" font-weight="bold" fill="%23FCFAF3" text-anchor="middle">B</text></svg>'>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,600&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -105,7 +105,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.1</small></div></div>
+    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.2</small></div></div>
     <nav class="nav" id="nav">
       <button data-view="dashboard" class="on">📊 Tableau de bord</button>
       <button data-view="liens">🔗 Surveillance des liens <span class="count" id="cLiens">0</span></button>
@@ -152,13 +152,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <script>
 "use strict";
 /* ================================================================
-   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v4.1 (avec logs de debug)
+   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v4.2
+   Correctifs intégrés : 1) checkLink · 2) Diagnostic · 3) normalizeState
    ================================================================ */
 
-/* ============================================================
-   1. STOCKAGE SUPABASE AVEC LOGS DÉTAILLÉS (pour diagnostic)
-   Ouvre la console navigateur (F12) pour voir les [Storage.*]
-   ============================================================ */
+/* ---------- 1. STOCKAGE SUPABASE AVEC LOGS ---------- */
 const Storage = {
   persistent: true,
   backend: 'supabase',
@@ -174,13 +172,10 @@ const Storage = {
       if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
       const payload = await resp.json();
       console.log('[Storage.init] Payload reçu :', payload);
-
       if (payload && payload.state && payload.state.version === 3) {
         this._memData = payload.state;
         this._lastSavedJson = JSON.stringify(payload.state);
         console.log('[Storage.init] ✅ État chargé avec succès depuis Supabase');
-        console.log('[Storage.init] Nombre de liens :', payload.state.liens.length);
-        console.log('[Storage.init] Nombre d\'items inbox :', payload.state.inbox.length);
         return this._memData;
       }
       throw new Error('État Supabase invalide (version manquante ou != 3)');
@@ -192,9 +187,7 @@ const Storage = {
     }
   },
 
-  read() {
-    return this._memData;
-  },
+  read() { return this._memData; },
 
   write(v) {
     console.log('[Storage.write] 📝 Sauvegarde programmée (debounce 1s)...');
@@ -204,7 +197,7 @@ const Storage = {
       try {
         const json = JSON.stringify(v);
         if (json === this._lastSavedJson) {
-          console.log('[Storage.write] ⚠️ Pas de changement détecté, sauvegarde ignorée (identique à la dernière sauvegarde)');
+          console.log('[Storage.write] ⚠️ Pas de changement détecté, sauvegarde ignorée');
           return;
         }
         console.log('[Storage.write] 📤 Envoi vers /api/save-data... (taille JSON :', json.length, 'octets)');
@@ -228,10 +221,7 @@ const Storage = {
     }, 1000);
   },
 
-  clear() {
-    this._memData = null;
-    this._lastSavedJson = null;
-  }
+  clear() { this._memData = null; this._lastSavedJson = null; }
 };
 
 const $ = s => document.querySelector(s);
@@ -244,9 +234,7 @@ const fmtDT = iso => {
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-/* ============================================================
-   2. DONNÉES DE RÉFÉRENCE
-   ============================================================ */
+/* ---------- 2. DONNÉES DE RÉFÉRENCE ---------- */
 const OBJETS = {
   poesie: { l: 'Poésie', c: 'b-poesie' },
   idees:  { l: "Littérature d'idées", c: 'b-idees' },
@@ -289,14 +277,99 @@ const SOURCES = [
 ];
 
 const REAL_FEEDS = [
-  { id: 'franceculture-oeuvre', nom: 'France Culture — La Compagnie des œuvres',
-    feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss' },
-  { id: 'franceculture-philosophie', nom: 'France Culture — Les Chemins de la philosophie',
-    feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss' },
-  { id: 'franceculture-texte', nom: 'France Culture — En français dans le texte',
-    feed: 'https://www.radiofrance.fr/franceculture/podcasts/en-francais-dans-le-texte/rss' },
-  { id: 'franceinter-masque', nom: 'France Inter — Le Masque et la Plume',
-    feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss' }
+ { id: 'franceculture-oeuvre', nom: 'France Culture — La Compagnie des œuvres', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss' },
+ { id: 'franceculture-philosophie', nom: 'France Culture — Les Chemins de la philosophie', feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss' },
+ { id: 'franceculture-texte', nom: 'France Culture — En français dans le texte', feed: 'https://www.radiofrance.fr/franceculture/podcasts/en-francais-dans-le-texte/rss' },
+ { id: 'franceinter-masque', nom: 'France Inter — Le Masque et la Plume', feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss' }
+];
+
+/* Whitelist seed : 85 liens contrôlés [rang, titre, url, statut, score, type, test, controleISO, note] */
+const LIENS_SEED = [
+ [1,"Éduscol — Programmes et définition des épreuves EAF","https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt","valide",10,"Officiel","responds","2026-08-07T18:51:00","Pointer la page « bac de français » du programme en vigueur"],
+ [2,"Rapports de jury EAF","https://pedagogie.ac-lille.fr/lettres/e-a-f-2025-rapport-du-jury-et-recommandations-de-preparation-et-devaluation-de-lentretien/","valide",9.5,"Officiel","responds","2026-08-07T18:51:00","Rubrique rapports de jury + bilans académiques"],
+ [3,"Annales officielles EAF (sujets zéro et sessions)","https://eduscol.education.gouv.fr/5199/annales-des-epreuves-du-baccalaureat-des-voies-generale-et-technologique","valide",9.5,"Officiel","responds","2026-08-07T18:51:00","Page sujets zéro / annales à pointer précisément"],
+ [4,"La Compagnie des œuvres — France Culture","https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres","valide",9.5,"Podcast","responds","2026-08-07T19:26:00"],
+ [5,"Lumni — Lycée (français 1re)","https://www.lumni.fr/lycee","valide",9,"Vidéos","responds","2026-08-07T19:28:00"],
+ [6,"Weblettres","https://www.weblettres.net/pedagogie/index2.php?rub=7","valide",9,"Portail","responds","2026-08-07T19:28:00"],
+ [7,"Amélie Vioux — méthodes du bac de français","https://www.youtube.com/@AmelieVioux-Bacdefrancais","valide",9,"Vidéos","error","2026-08-07T18:51:00","Handle YouTube à confirmer"],
+ [8,"L'École des lettres","https://www.ecoledeslettres.fr/","fiable",9,"Revue"],
+ [9,"Dossiers pédagogiques de la BnF (Gallica / Essentiels)","https://classes.bnf.fr/","fiable",9,"Dossiers"],
+ [10,"Classiques & Cie — Hatier","https://www.hatier.fr/","a_verifier",9,"Édition","responds",null,"Page de la collection à pointer"],
+ [11,"Le Livre Scolaire — Français 1re","https://www.lelivrescolaire.fr/","fiable",9,"Manuel"],
+ [12,"Académie en ligne — CNED","https://www.academieenligne.fr/","fiable",8.5,"Cours"],
+ [13,"Kartable — Français 1re","https://www.kartable.fr/","fiable",8.5,"Plateforme"],
+ [14,"Aurore Ponsonnet — chaîne YouTube","https://www.youtube.com/results?search_query=Aurore+Ponsonnet","valide",8.5,"Vidéos","responds","2026-08-07T21:02:00","Handle exact à confirmer puis remplacer ce lien de recherche"],
+ [15,"Sites académiques « Lettres » (Versailles, Aix, Toulouse…)","https://lettres.ac-versailles.fr/","fiable",8.5,"Séquences"],
+ [16,"Arte — Spectacles (captations théâtre)","https://www.arte.tv/fr/videos/spectacles-et-concerts/","valide",8.5,"Captations","responds","2026-08-07T21:02:00","Intitulé exact de la rubrique à confirmer"],
+ [17,"Comédie-Française (site et captations)","https://www.comedie-francaise.fr/","fiable",8.5,"Captations"],
+ [18,"Littérature audio.com","https://www.litteratureaudio.com/","fiable",8.5,"Audio"],
+ [19,"Wikisource (textes intégraux)","https://fr.wikisource.org/","fiable",8.5,"Textes"],
+ [20,"Gallica — BnF","https://gallica.bnf.fr/","fiable",8.5,"Archives"],
+ [21,"Folio+ Lycée — Gallimard","https://editions.flammarion.com/Catalogue/etonnants-classiques/lycee","valide",8.5,"Édition","responds","2026-08-07T19:05:00","Page de la collection à pointer"],
+ [22,"Quand je passe le bac","https://quandjepasselebac.education.gouv.fr/","fiable",8.5,"Officiel"],
+ [23,"Les Bons Profs","https://www.lesbonsprofs.com/","fiable",8,"Vidéos"],
+ [24,"SchoolMouv","https://www.schoolmouv.fr/","fiable",8,"Plateforme"],
+ [25,"Annabac","https://www.annabac.com/","fiable",8,"Annales"],
+ [26,"Réviser son bac avec France Culture","https://www.radiofrance.fr/sujets/bac-francais","valide",8,"Podcasts","responds","2026-08-07T19:06:00","Page « révisions » à confirmer (offre variable)"],
+ [27,"Les Chemins de la philosophie — France Culture","https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie","fiable",8,"Podcast"],
+ [28,"theatre-contemporain.net","https://theatre-contemporain.net/","fiable",8,"Théâtre"],
+ [29,"Pièces démontées — Réseau Canopé","https://www.reseau-canope.fr/","a_verifier",8,"Dossiers","error",null,"Collection « Pièces démontées » à pointer"],
+ [30,"Carrés classiques — Nathan","https://www.nathan.fr/collections/carres-classiques-college-lycee","valide",8,"Édition","responds","2026-08-07T19:08:00","Page de la collection à pointer"],
+ [31,"Classiques & Contemporains — Magnard","https://www.magnard.fr/","a_verifier",8,"Édition","responds",null,"Page de la collection à pointer"],
+ [32,"Folioplus classiques — Gallimard","https://www.folio-lesite.fr/collections/folioplus-classiques","valide",8,"Édition","responds","2026-08-07T19:11:00","Page de la collection à pointer"],
+ [33,"Annales du bac Hatier","https://boutique.annabac.com/theme/3/premiere?tag_ids=7","valide",8,"Annales","responds","2026-08-07T19:01:00","Rayon annales à pointer"],
+ [34,"NRP Lettres","https://www.nathan.fr/","a_verifier",8,"Revue","responds",null,"Accès revue NRP à confirmer"],
+ [35,"La Revue — Réseau Canopé (ex-TDC)","https://www.reseau-canope.fr/","a_verifier",8,"Revue","error",null,"Rubrique revue à pointer"],
+ [36,"Commentaire composé","https://www.commentairecompose.fr/","valide",8,"Analyses",null,"2026-08-07T19:02:00","Domaine à confirmer + validation éditoriale des analyses"],
+ [37,"Collège de France (conférences littérature)","https://www.college-de-france.fr/","fiable",8,"Conférences"],
+ [38,"Le Cercle Gallimard de l'enseignement","https://www.cercle-enseignement.com/Lycee/Premiere-GT/Au-programme","valide",8,"Dossiers","responds","2026-08-07T19:24:00","Domaine à confirmer"],
+ [39,"Étonnants classiques — Flammarion","https://editions.flammarion.com/Catalogue/etonnants-classiques/lycee","valide",7.5,"Édition","responds","2026-08-07T19:03:00","Page de la collection à pointer"],
+ [40,"ABC du Bac — Nathan","https://www.nathan.fr/","a_verifier",7.5,"Révision","responds",null,"Rayon ABC du Bac à pointer"],
+ [41,"Réussite Bac — Bordas","https://www.bordas.fr/","a_verifier",7.5,"Révision","error",null,"Rayon bac à pointer"],
+ [42,"Fiches bac Hatier & Nathan","https://www.hatier.fr/","a_verifier",7.5,"Révision","responds",null,"Rayon fiches bac à pointer"],
+ [43,"Petits Classiques Larousse","https://www.larousse.fr/","a_verifier",7.5,"Édition","responds",null,"Page de la collection à pointer"],
+ [44,"Belin Gallimard Éducation","https://www.belin-education.com/","a_verifier",7.5,"Édition","responds",null,"Domaine à confirmer"],
+ [45,"AFEF — Association française des enseignants de français","https://www.afef.org/","fiable",7.5,"Association"],
+ [46,"Le Français aujourd'hui (revue)","https://www.cairn.info/revue-le-francais-aujourd-hui.htm","fiable",7.5,"Revue"],
+ [47,"Le Printemps des Poètes","https://www.printempsdespoetes.com/","fiable",7.5,"Poésie"],
+ [48,"Poésie/Gallimard (collection)","https://www.gallimard.fr/","a_verifier",7.5,"Édition","responds",null,"Page de la collection à pointer"],
+ [49,"Odéon-Théâtre de l'Europe — ressources","https://www.theatre-odeon.eu/","fiable",7.5,"Théâtre"],
+ [50,"Festival d'Avignon — ressources pédagogiques","https://festival-avignon.com/","fiable",7.5,"Théâtre"],
+ [51,"La Grande Librairie","https://www.france.tv/france-5/la-grande-librairie/","valide",7.5,"Émission","responds","2026-08-07T21:09:00","Chaîne de diffusion (France 2/5) à confirmer"],
+ [52,"Ebooks libres et gratuits","https://www.ebooksgratuits.com/","fiable",7.5,"Textes"],
+ [53,"Bibliothèque électronique du Québec","https://beq.ebooksgratuits.com/","fiable",7.5,"Textes"],
+ [54,"Passerelles — BnF","https://passerelles.bnf.fr/","a_verifier",7.5,"Dossiers","error",null,"Domaine à confirmer"],
+ [55,"Audiocité","https://www.audiocite.net/","fiable",7.5,"Audio"],
+ [56,"Super-Bac — digiSchool","https://www.super-bac.com/","fiable",7,"Annales"],
+ [57,"Nomad Education","https://www.nomad-education.com/","fiable",7,"Application"],
+ [58,"L'Étudiant — rubrique bac","https://www.letudiant.fr/","fiable",7,"Média"],
+ [59,"Phosphore","https://www.phosphore.com/","a_verifier",7,"Média","responds",null,"Domaine à confirmer (Bayard)"],
+ [60,"Le Café pédagogique","https://www.cafepedagogique.net/","fiable",7,"Média"],
+ [61,"Cairn.info (littérature)","https://www.cairn.info/","fiable",7,"Articles"],
+ [62,"OpenEdition Journals (et Persée)","https://journals.openedition.org/","fiable",7,"Articles"],
+ [63,"CNRTL — Trésor de la langue française","https://www.cnrtl.fr/","fiable",7,"Outil"],
+ [64,"Académie française — ressources de langue","https://www.academie-francaise.fr/","fiable",7,"Outil"],
+ [65,"INA.fr — archives (interviews d'auteurs)","https://www.ina.fr/","fiable",7,"Archives"],
+ [66,"Chaîne YouTube de la BnF","https://www.youtube.com/user/BnF","a_verifier",7,"Vidéos","error",null,"Handle à confirmer"],
+ [67,"RetroNews — presse ancienne (BnF)","https://www.retronews.fr/","fiable",7,"Archives"],
+ [68,"L'Avant-Scène Théâtre","https://www.avant-scene-theatre.com/","a_verifier",7,"Revue","responds",null,"Domaine à confirmer"],
+ [69,"TNP Villeurbanne — ressources pédagogiques","https://www.tnp-villeurbanne.com/","fiable",7,"Théâtre"],
+ [70,"Théâtre du Rond-Point — ressources","https://www.theatredurondpoint.fr/","fiable",7,"Théâtre"],
+ [71,"Studyrama — fiches bac","https://www.studyrama.com/","fiable",6.5,"Fiches"],
+ [72,"Le Masque et la Plume — France Inter","https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume","fiable",6.5,"Émission"],
+ [73,"L'Antisèche — Cyrus North","https://www.youtube.com/results?search_query=l%27antis%C3%A8che+cyrus+north","valide",6.5,"Vidéos","responds","2026-08-07T21:05:00","Handle exact à confirmer puis remplacer ce lien de recherche"],
+ [74,"Le Précepteur","https://www.youtube.com/results?search_query=le+pr%C3%A9cepteur+philosophie","a_verifier",6.5,"Vidéos","responds",null,"Handle exact à confirmer puis remplacer ce lien de recherche"],
+ [75,"Le Monde Campus","https://www.lemonde.fr/campus/","fiable",6.5,"Média"],
+ [76,"poesie.net","http://www.poesie.net/","valide",6.5,"Poésie","responds","2026-08-07T21:05:00","Existence et contenu du site à confirmer avant intégration"],
+ [77,"Anki — mémorisation espacée","https://apps.ankiweb.net/","fiable",6.5,"Outil"],
+ [78,"Le Figaro Étudiant","https://etudiant.lefigaro.fr/","fiable",6,"Média"],
+ [79,"Nota Bene","https://www.youtube.com/@NotaBene","fiable",6,"Vidéos"],
+ [80,"Quizlet","https://quizlet.com/fr","fiable",6,"Outil"],
+ [81,"La Suite dans les idées — France Culture","https://www.radiofrance.fr/franceculture/podcasts/la-suite-dans-les-idees","fiable",6,"Podcast"],
+ [82,"FUN-MOOC (MOOC littérature)","https://www.fun-mooc.fr/","fiable",6,"Cours"],
+ [83,"TV5Monde — Apprendre","https://apprendre.tv5monde.com/","fiable",5.5,"Fiches"],
+ [84,"Superprof","https://www.superprof.fr/","exclu",4.5,"Marketplace",null,null,"Marketplace sans contrôle de qualité : hors whitelist"],
+ [85,"Etudier.com","https://www.etudier.com/","exclu",3.5,"Docs partagés",null,null,"Documents non vérifiés : à exclure"]
 ];
 
 const POOL = [
@@ -332,42 +405,20 @@ const CAND_POOL = [
  { id: 'c5', nom: 'Barbey Pédagogie', feed: 'https://www.barbeypedagogie.fr/', type: 'Éducation médias', score: 8, raison: 'Structures journalistiques, argumentation.' }
 ];
 
-const LIENS_SEED = [
- [1, "Éduscol — Programmes et définition des épreuves EAF", "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt", "valide", 10, "Officiel"],
- [2, "Rapports de jury EAF (Lille)", "https://pedagogie.ac-lille.fr/lettres/e-a-f-2025-rapport-du-jury/", "valide", 9.5, "Officiel"],
- [3, "Annales officielles EAF", "https://eduscol.education.gouv.fr/5199/annales-des-epreuves-du-baccalaureat", "valide", 9.5, "Officiel"],
- [4, "La Compagnie des œuvres", "https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres", "valide", 9.5, "Podcast"],
- [5, "Lumni — Lycée", "https://www.lumni.fr/lycee", "valide", 9, "Vidéos"],
- [6, "Weblettres", "https://www.weblettres.net/pedagogie/index2.php?rub=7", "valide", 9, "Portail"],
- [7, "Amélie Vioux", "https://www.youtube.com/@AmelieVioux-Bacdefrancais", "valide", 9, "Vidéos"],
- [8, "L'École des lettres", "https://www.ecoledeslettres.fr/", "fiable", 9, "Revue"],
- [9, "Dossiers BnF", "https://classes.bnf.fr/", "fiable", 9, "Dossiers"],
- [10, "Classiques & Cie — Hatier", "https://www.hatier.fr/", "a_verifier", 9, "Édition"],
- [11, "Le Livre Scolaire", "https://www.lelivrescolaire.fr/", "fiable", 9, "Manuel"],
- [12, "CNED Académie en ligne", "https://www.academieenligne.fr/", "fiable", 8.5, "Cours"],
- [13, "Kartable", "https://www.kartable.fr/", "fiable", 8.5, "Plateforme"],
- [14, "Aurore Ponsonnet", "https://www.youtube.com/results?search_query=Aurore+Ponsonnet", "valide", 8.5, "Vidéos"],
- [15, "Sites académiques Lettres", "https://lettres.ac-versailles.fr/", "fiable", 8.5, "Séquences"],
- [16, "Arte — Spectacles", "https://www.arte.tv/fr/videos/spectacles-et-concerts/", "valide", 8.5, "Captations"],
- [17, "Comédie-Française", "https://www.comedie-francaise.fr/", "fiable", 8.5, "Captations"],
- [18, "Littérature audio.com", "https://www.litteratureaudio.com/", "fiable", 8.5, "Audio"],
- [19, "Wikisource", "https://fr.wikisource.org/", "fiable", 8.5, "Textes"],
- [20, "Gallica — BnF", "https://gallica.bnf.fr/", "fiable", 8.5, "Archives"]
-];
-
-/* ============================================================
-   3. ÉTAT
-   ============================================================ */
+/* ---------- 3. ÉTAT ---------- */
 function seed() {
   return {
     version: 3, cree: nowISO(), role: 'admin',
     settings: { freq: 30, actif: false, nextRun: null, autoCollect: true, autoLinks: true,
                 testMode: true, currentProgram: '2025-2026', nextProgram: '2026-2027', lastDigest: null },
-    liens: LIENS_SEED.map(([r, t, u, st, sc, ty]) =>
-      ({ id: 'L' + r, rang: r, titre: t, url: u, statut: st, score: sc, type: ty, dernier: null, hist: [] })),
+    liens: LIENS_SEED.map(a => ({
+      id: 'L' + a[0], rang: a[0], titre: a[1], url: a[2], statut: a[3], score: a[4], type: a[5],
+      note: a[8] || null,
+      dernier: a[6] ? { ts: a[7] || nowISO(), res: a[6] } : null,
+      hist: []
+    })),
     inbox: [], fingerprints: {}, collectes: [], watch: [], candidats: [], rapports: [],
-    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation',
-              details: 'Base v4.1 créée (Supabase + logs).' }],
+    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation', details: 'Base v4.2 créée (Supabase + correctifs).' }],
     log: []
   };
 }
@@ -376,21 +427,12 @@ let DB = null;
 function save() { Storage.write(DB); updateStorageTag(); }
 function updateStorageTag() {
   const el = $('#storageTag'); if (!el) return;
-  if (Storage.backend === 'supabase') {
-    el.textContent = '💾 Supabase actif';
-    el.className = 'storage-tag';
-  } else if (Storage.backend === 'memory') {
-    el.textContent = '⚠️ Mode mémoire (Supabase indisponible)';
-    el.className = 'storage-tag mem';
-  } else {
-    el.textContent = '❌ Erreur de stockage';
-    el.className = 'storage-tag err';
-  }
+  if (Storage.backend === 'supabase') { el.textContent = '💾 Supabase actif'; el.className = 'storage-tag'; }
+  else if (Storage.backend === 'memory') { el.textContent = '⚠️ Mode mémoire (Supabase indisponible)'; el.className = 'storage-tag mem'; }
+  else { el.textContent = '❌ Erreur de stockage'; el.className = 'storage-tag err'; }
 }
 
-/* ============================================================
-   4. RÔLES & AUDIT
-   ============================================================ */
+/* ---------- 4. RÔLES & AUDIT ---------- */
 const PERMS = {
  admin: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export','import','reset'],
  editeur: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export'],
@@ -407,9 +449,7 @@ function toast(msg, kind) {
   clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', 3200);
 }
 
-/* ============================================================
-   5. COLLECTE / ÉTIQUETAGE / DÉDOUBLONNAGE / SCORE
-   ============================================================ */
+/* ---------- 5. COLLECTE / ÉTIQUETAGE / DÉDOUBLONNAGE / SCORE ---------- */
 function normFP(url, titre, src) {
   const u = (url || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').replace(/[?#].*$/, '');
   return u || ((titre || '') + '|' + (src || '')).toLowerCase();
@@ -426,10 +466,7 @@ function matchOeuvres(c) {
   const hay = ((c.t || c.titre || '') + ' ' + (c.x || c.desc || '')).toLowerCase();
   return OEUVRES.filter(o => o.kw.some(k => hay.indexOf(k) >= 0)).map(o => o.id);
 }
-const oeuvreActive = id => {
-  const o = OEUVRES.find(x => x.id === id);
-  return o && o.statut !== 'Sortante (renouvellement)';
-};
+const oeuvreActive = id => { const o = OEUVRES.find(x => x.id === id); return o && o.statut !== 'Sortante (renouvellement)'; };
 function composite(it) {
   const days = (Date.now() - new Date(it.date).getTime()) / 86400000;
   const frais = days < 30 ? 10 : days < 90 ? 8 : days < 180 ? 6 : days < 365 ? 4 : 2;
@@ -471,41 +508,29 @@ function runCollectSimulee(trigger) {
 async function runCollect(trigger) {
   if (!can('collect')) { toast('Rôle insuffisant pour lancer une collecte.', 'err'); return; }
   if (DB.settings.testMode) return runCollectSimulee(trigger);
-
   const run = { id: uid(), ts: nowISO(), trigger, items: 0, nouveaux: 0, doublons: 0, nonIdentifies: 0 };
   let feedsOk = 0, feedsKo = 0;
   for (const src of REAL_FEEDS) {
     try {
       const resp = await fetch('/api/collect?feed=' + encodeURIComponent(src.feed));
       const data = await resp.json();
-      if (data.error || !data.items) {
-        feedsKo++;
-        log('Flux en échec : ' + src.nom + ' (' + (data.error || 'vide') + ')', 'warn');
-        continue;
-      }
-      feedsOk++;
-      run.items += data.items.length;
-      data.items.forEach(it => ingestCandidate({
-        titre: it.titre, url: it.url, desc: it.desc, date: it.date
-      }, src.id, run));
-    } catch (e) {
-      feedsKo++;
-      log('Erreur réseau sur le flux : ' + src.nom + ' (' + e.message + ')', 'err');
-    }
+      if (data.error || !data.items) { feedsKo++; log('Flux en échec : ' + src.nom + ' (' + (data.error || 'vide') + ')', 'warn'); continue; }
+      feedsOk++; run.items += data.items.length;
+      data.items.forEach(it => ingestCandidate({ titre: it.titre, url: it.url, desc: it.desc, date: it.date }, src.id, run));
+    } catch (e) { feedsKo++; log('Erreur réseau sur le flux : ' + src.nom + ' (' + e.message + ')', 'err'); }
   }
   DB.collectes.unshift(run);
-  audit('Collecte RÉELLE (' + trigger + ')',
-    run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons, ' + feedsOk + ' flux OK, ' + feedsKo + ' échecs.');
+  audit('Collecte RÉELLE (' + trigger + ')', run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons, ' + feedsOk + ' flux OK, ' + feedsKo + ' échecs.');
   log('Collecte réelle : ' + feedsOk + ' flux OK, ' + feedsKo + ' en échec, ' + run.nouveaux + ' nouveaux candidats.', feedsKo > 0 ? 'warn' : 'ok');
   toast('Collecte réelle : ' + run.nouveaux + ' nouveaux (' + feedsOk + ' flux OK).', feedsKo > 0 ? 'err' : 'ok');
   save(); refreshCounts(); render();
 }
 
-/* ============================================================
-   6. CONTRÔLE DES LIENS
-   ============================================================ */
+/* ---------- 6. CONTRÔLE DES LIENS ---------- */
 let linkBusy = false;
+/* ✅ CORRECTIF 1 : garde-fou si lien indéfini ou sans URL */
 async function checkLink(l) {
+  if (!l || !l.url) { console.warn('[checkLink] Lien indéfini ou sans URL'); return 'error'; }
   let res, detail = null;
   if (DB.settings.testMode) {
     await new Promise(r => setTimeout(r, 60 + Math.random() * 140));
@@ -549,9 +574,7 @@ async function runLinkCheck(batch) {
   refreshCounts(); render();
 }
 
-/* ============================================================
-   7. VEILLE BO
-   ============================================================ */
+/* ---------- 7. VEILLE BO ---------- */
 function watchBO() {
   if (!can('watch')) { toast('Rôle insuffisant pour la veille BO.', 'err'); return; }
   const actives = OEUVRES.filter(o => o.statut === 'Au programme');
@@ -571,9 +594,7 @@ function watchBO() {
   save(); refreshCounts(); render();
 }
 
-/* ============================================================
-   8. SOURCES CANDIDATES
-   ============================================================ */
+/* ---------- 8. SOURCES CANDIDATES ---------- */
 function detectSources() {
   if (!can('approve')) { toast('Rôle insuffisant.', 'err'); return; }
   const known = new Set(DB.candidats.map(c => c.id));
@@ -600,9 +621,7 @@ function approveSource(id, ok) {
   save(); refreshCounts(); render();
 }
 
-/* ============================================================
-   9. WORKFLOW
-   ============================================================ */
+/* ---------- 9. WORKFLOW ---------- */
 const TRANSITIONS = {
   candidate: [
     { to: 'en_revue', label: '→ En revue', perm: 'review', cls: 'btn--ink' },
@@ -636,9 +655,7 @@ function moveItem(id, to) {
   save(); toast('« ' + it.titre + ' » → ' + STATUT_LABEL[to] + '.', 'ok'); render();
 }
 
-/* ============================================================
-   10. PLANIFICATEUR
-   ============================================================ */
+/* ---------- 10. PLANIFICATEUR ---------- */
 let schedTimer = null, countTimer = null;
 async function scheduledTick() {
   log('⏰ Exécution planifiée (intervalle ' + DB.settings.freq + ' min).', 'info');
@@ -677,9 +694,7 @@ function updateSchedUI() {
   }
 }
 
-/* ============================================================
-   11. DIGEST
-   ============================================================ */
+/* ---------- 11. DIGEST ---------- */
 function buildDigest() {
   const pubs = DB.inbox.filter(i => i.statut === 'publiee');
   let md = '# Digest EAF — ' + new Date().toLocaleDateString('fr-FR') + '\n\nProgramme : ' + DB.settings.currentProgram + ' · ' + pubs.length + ' analyses publiées.\n\n';
@@ -696,9 +711,7 @@ function buildDigest() {
   return md;
 }
 
-/* ============================================================
-   12. DIAGNOSTIC
-   ============================================================ */
+/* ---------- 12. DIAGNOSTIC ---------- */
 async function runDiagnostics() {
   const box = $('#diagResults'); if (!box) return;
   const btn = $('#btnDiag'); if (btn) btn.disabled = true;
@@ -714,55 +727,41 @@ async function runDiagnostics() {
 
   add('Référentiel œuvres', OEUVRES.length === 16, OEUVRES.length + ' œuvres');
   add('Whitelist liens', DB.liens.length >= 20, DB.liens.length + ' liens');
-  add('Étiquetage par mots-clés',
-    matchOeuvres({ t: 'La Peau de chagrin, incipit', x: 'Balzac' }).indexOf('balzac') >= 0, 'œuvre détectée');
-  add('Dédoublonnage (empreinte)',
-    normFP('https://www.example.com/page?x=1', 't', 's') === normFP('http://example.com/page', 't', 's'),
-    'URL équivalentes → même empreinte');
+  add('Étiquetage par mots-clés', matchOeuvres({ t: 'La Peau de chagrin, incipit', x: 'Balzac' }).indexOf('balzac') >= 0, 'œuvre détectée');
+  add('Dédoublonnage (empreinte)', normFP('https://www.example.com/page?x=1', 't', 's') === normFP('http://example.com/page', 't', 's'), 'URL équivalentes → même empreinte');
   const sc = composite({ date: nowISO().slice(0, 10), source: 'lumni', oeuvreIds: ['balzac'] });
   add('Score composite', sc >= 0 && sc <= 10, 'score ' + sc + '/10');
-  add('Matrice des permissions',
-    PERMS.admin.indexOf('publish') >= 0 && PERMS.lecture.indexOf('publish') < 0,
-    'admin peut publier, lecture seule non');
+  add('Matrice des permissions', PERMS.admin.indexOf('publish') >= 0 && PERMS.lecture.indexOf('publish') < 0, 'admin peut publier, lecture seule non');
 
-  // Test Supabase
   try {
     const r = await fetch('/api/load-data');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
-    add('Connectivité Supabase', data && data.state && data.state.version === 3,
-      'état chargé (v' + (data.state ? data.state.version : '?') + ')');
-  } catch (e) {
-    add('Connectivité Supabase', false, e.message);
-  }
+    add('Connectivité Supabase', data && data.state && data.state.version === 3, 'état chargé (v' + (data.state ? data.state.version : '?') + ')');
+  } catch (e) { add('Connectivité Supabase', false, e.message); }
 
-  // Test /api/check-link
   try {
     const r = await fetch('/api/check-link?url=' + encodeURIComponent('https://example.com'));
     const d = await r.json();
-    add('Fonction /api/check-link', d && typeof d.ok === 'boolean',
-      d.ok ? 'example.com répond' : 'erreur');
-  } catch (e) {
-    add('Fonction /api/check-link', false, e.message);
-  }
+    add('Fonction /api/check-link', d && typeof d.ok === 'boolean', d.ok ? 'example.com répond' : 'erreur');
+  } catch (e) { add('Fonction /api/check-link', false, e.message); }
 
-  // Test /api/collect avec un flux minimal
   try {
     const r = await fetch('/api/collect?feed=' + encodeURIComponent('https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss'));
     const d = await r.json();
-    add('Fonction /api/collect (flux réel)',
-      d && !d.error && Array.isArray(d.items) && d.items.length > 0,
-      d.error ? d.error : (d.items ? d.items.length + ' éléments' : 'vide'));
-  } catch (e) {
-    add('Fonction /api/collect (flux réel)', false, e.message);
-  }
+    add('Fonction /api/collect (flux réel)', d && !d.error && Array.isArray(d.items) && d.items.length > 0, d.error ? d.error : (d.items ? d.items.length + ' éléments' : 'vide'));
+  } catch (e) { add('Fonction /api/collect (flux réel)', false, e.message); }
 
-  // Contrôle d'un lien (simulation)
+  /* ✅ CORRECTIF 2 : garde-fou si la base de liens est vide */
   const prevMode = DB.settings.testMode;
   DB.settings.testMode = true;
-  const l = DB.liens[0]; const r = await checkLink(l);
+  if (DB.liens.length > 0) {
+    const l = DB.liens[0]; const r = await checkLink(l);
+    add('Contrôle d\'un lien (simulation)', r === 'responds' || r === 'error', 'retour : ' + r);
+  } else {
+    add('Contrôle d\'un lien (simulation)', false, 'aucun lien (base réparée au prochain chargement)');
+  }
   DB.settings.testMode = prevMode; save();
-  add('Contrôle d\'un lien (simulation)', r === 'responds' || r === 'error', 'retour : ' + r);
 
   add('Flux réels configurés', REAL_FEEDS.length > 0, REAL_FEEDS.length + ' flux dans REAL_FEEDS');
   const md = buildDigest();
@@ -774,9 +773,7 @@ async function runDiagnostics() {
   if (btn) btn.disabled = false;
 }
 
-/* ============================================================
-   13. RENDU
-   ============================================================ */
+/* ---------- 13. RENDU ---------- */
 let currentView = 'dashboard';
 const TITLES = {
   dashboard: ['📊 Tableau de bord', "Vue d'ensemble : liens, collecte, veille BO, workflow, couverture."],
@@ -885,7 +882,7 @@ function renderLiensTable() {
       const testBadge = !d ? '<span class="b b-outline">Non testé</span>' :
         (d.res === 'responds' ? '<span class="b b-green">◉ Répond</span>' : '<span class="b b-red">◌ Erreur</span>');
       const stBadge = l.statut === 'a_verifier' ? '<span class="b b-gold">⚠ À vérifier</span>' :
-        (l.statut === 'valide' ? '<span class="b b-green">✓ Validé</span>' : '<span class="b b-teal">● Fiable</span>');
+        (l.statut === 'valide' ? '<span class="b b-green">✓ Validé</span>' : (l.statut === 'exclu' ? '<span class="b b-grey">⛔ Exclu</span>' : '<span class="b b-teal">● Fiable</span>'));
       const http = d && d.detail && d.detail.status ? ('<span class="mono small muted"> · HTTP ' + d.detail.status + '</span>') : '';
       return '<tr><td class="mono muted">' + l.rang + '</td><td><b>' + esc(l.titre) + '</b><br><span class="mono muted small">' + esc(l.url) + '</span></td><td>' + stBadge + '<br><span class="b b-outline" style="margin-top:3px">' + esc(l.type) + '</span></td><td><b>' + l.score + '</b><span class="muted">/10</span></td><td>' + testBadge + http + '<br><span class="mono muted small">' + (d ? fmtDT(d.ts) : '—') + '</span></td><td style="white-space:nowrap"><a class="btn btn--ghost btn--sm" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">↗</a> <button class="btn btn--ink btn--sm" data-test="' + l.id + '">Test</button></td></tr>';
     }).join('') + '</tbody>';
@@ -929,15 +926,9 @@ function viewCollecte() {
 }
 function itemCard(it) {
   const objBadges = it.objets.map(o => '<span class="b ' + OBJETS[o].c + '">' + OBJETS[o].l + '</span>').join(' ');
-  const oeuvreTags = it.oeuvreIds.map(id => {
-    const o = OEUVRES.find(x => x.id === id);
-    return '<span class="b b-teal">📖 ' + esc(o.titre) + '</span>';
-  }).join(' ') || '<span class="b b-gold">⚠ œuvre non identifiée</span>';
+  const oeuvreTags = it.oeuvreIds.map(id => { const o = OEUVRES.find(x => x.id === id); return '<span class="b b-teal">📖 ' + esc(o.titre) + '</span>'; }).join(' ') || '<span class="b b-gold">⚠ œuvre non identifiée</span>';
   const obsoleteB = it.obsolete ? '<span class="b b-orange">⚠ Obsolète (œuvre sortante)</span>' : '';
-  const trs = (TRANSITIONS[it.statut] || []).map(t => {
-    const dis = can(t.perm) ? '' : ' disabled';
-    return '<button class="btn btn--sm ' + t.cls + '" data-move="' + it.id + '" data-to="' + t.to + '"' + dis + '>' + t.label + '</button>';
-  }).join('');
+  const trs = (TRANSITIONS[it.statut] || []).map(t => { const dis = can(t.perm) ? '' : ' disabled'; return '<button class="btn btn--sm ' + t.cls + '" data-move="' + it.id + '" data-to="' + t.to + '"' + dis + '>' + t.label + '</button>'; }).join('');
   return '<div class="card item st-' + it.statut + (it.obsolete ? ' obsolete' : '') + '">' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="b ' + STATUT_BADGE[it.statut] + '">' + STATUT_LABEL[it.statut] + '</span><span class="b b-outline">' + esc(it.format) + '</span><span class="b b-outline">' + esc(it.exercice) + '</span>' + objBadges + '<span class="b b-ink">Score ' + it.score + '</span>' + obsoleteB + '<span style="flex:1"></span><span class="mono muted small">' + esc(it.date) + ' · via ' + esc(it.source) + '</span></div>' +
     '<h3 class="h" style="margin-top:8px">' + esc(it.titre) + '</h3><p class="small muted">' + esc(it.desc) + '</p>' +
@@ -979,9 +970,7 @@ function renderDigest() {
     const items = pubs.filter(i => i.oeuvreIds.indexOf(o.id) >= 0);
     if (items.length) {
       html += '<h3 class="h" style="margin-top:12px">📖 ' + esc(o.titre) + ' <span class="muted small">(' + esc(o.auteur) + ')</span></h3>';
-      items.forEach(i => {
-        html += '<div class="kv"><span>• <a href="' + esc(i.url) + '" target="_blank" rel="noopener noreferrer">' + esc(i.titre) + '</a> <span class="b b-outline">' + esc(i.format) + '</span></span><span class="mono small muted">via ' + esc(i.source) + '</span></div>';
-      });
+      items.forEach(i => { html += '<div class="kv"><span>• <a href="' + esc(i.url) + '" target="_blank" rel="noopener noreferrer">' + esc(i.titre) + '</a> <span class="b b-outline">' + esc(i.format) + '</span></span><span class="mono small muted">via ' + esc(i.source) + '</span></div>'; });
     }
   });
   box.innerHTML = html;
@@ -997,9 +986,7 @@ function viewRapports() {
     '<div class="card"><h3 class="h">File de modération (' + DB.rapports.filter(r => r.statut === 'ouvert').length + ' ouverts)</h3>' +
     (DB.rapports.length === 0 ? '<p class="muted small">Aucun signalement.</p>' : DB.rapports.map(r => {
       const l = DB.liens.find(x => x.id === r.linkId);
-      const actions = r.statut === 'ouvert'
-        ? (can('rapport') ? '<button class="btn btn--green btn--sm" data-rappok="' + r.id + '">Traité</button> <button class="btn btn--ghost btn--sm" data-rappko="' + r.id + '">Ignorer</button>' : '<span class="b b-gold">ouvert</span>')
-        : '<span class="b b-grey">' + esc(r.statut) + '</span>';
+      const actions = r.statut === 'ouvert' ? (can('rapport') ? '<button class="btn btn--green btn--sm" data-rappok="' + r.id + '">Traité</button> <button class="btn btn--ghost btn--sm" data-rappko="' + r.id + '">Ignorer</button>' : '<span class="b b-gold">ouvert</span>') : '<span class="b b-grey">' + esc(r.statut) + '</span>';
       return '<div class="kv"><span><b>' + esc(r.type) + '</b> — ' + esc(l ? l.titre : '?') + '<br><span class="muted small">' + esc(r.msg) + '</span><br><span class="mono small muted">' + fmtDT(r.ts) + ' · ' + esc(r.by) + '</span></span><span>' + actions + '</span></div>';
     }).join('')) + '</div></div>';
 }
@@ -1028,9 +1015,7 @@ function viewDiagnostic() {
 }
 
 function viewSecurite() {
-  const permsList = Object.entries(PERMS).map(([r, p]) =>
-    '<div class="kv"><span><b>' + roleName[r] + '</b></span><span class="small muted">' + p.join(', ') + '</span></div>'
-  ).join('');
+  const permsList = Object.entries(PERMS).map(([r, p]) => '<div class="kv"><span><b>' + roleName[r] + '</b></span><span class="small muted">' + p.join(', ') + '</span></div>').join('');
   const disImport = can('import') ? '' : ' disabled';
   const disReset = can('reset') ? '' : ' disabled';
   return '<div class="grid grid-2">' +
@@ -1045,9 +1030,7 @@ function viewSecurite() {
     '<h2 class="section">Chemin vers la production</h2><div class="card small" style="line-height:1.8">Maquette <b>100% fonctionnelle côté client</b>. Déployée sur Vercel avec <span class="mono">api/check-link.js</span>, <span class="mono">api/collect.js</span>, <span class="mono">api/load-data.js</span> et <span class="mono">api/save-data.js</span>, le mode réseau réel est actif et les données persistent dans Supabase. Prochaines étapes : Vercel Cron pour la collecte automatique, authentification réelle (SSO éducatif).</div>';
 }
 
-/* ============================================================
-   14. EXPORT / IMPORT
-   ============================================================ */
+/* ---------- 14. EXPORT / IMPORT ---------- */
 function exportJSON() {
   const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1065,24 +1048,18 @@ function importJSON(file) {
     try {
       const obj = JSON.parse(rd.result);
       if (!obj || obj.version !== 3 || !obj.liens) throw new Error('format');
-      DB = obj; save();
+      DB = normalizeState(obj); save();
       audit('Import', 'Base restaurée depuis une sauvegarde.');
       toast('Import réussi.', 'ok');
       refreshCounts(); render();
-    } catch (e) {
-      toast('Fichier invalide.', 'err');
-    }
+    } catch (e) { toast('Fichier invalide.', 'err'); }
   };
   rd.readAsText(file);
 }
 
-/* ============================================================
-   15. ÉVÉNEMENTS (délégation défensive)
-   ============================================================ */
+/* ---------- 15. ÉVÉNEMENTS ---------- */
 function setupListeners() {
-  $('#nav').addEventListener('click', function (e) {
-    const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view);
-  });
+  $('#nav').addEventListener('click', function (e) { const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view); });
   $('#rolePick').addEventListener('change', function (e) {
     DB.role = e.target.value; save();
     audit('Changement de rôle', 'Rôle actif : ' + roleName[DB.role]);
@@ -1102,47 +1079,19 @@ function setupListeners() {
       }
       if ((el = e.target.closest('[data-lf]'))) { lienFiltre = el.dataset.lf; render(); return; }
       if ((el = e.target.closest('[data-if]'))) { inboxFiltre = el.dataset.if; render(); return; }
-      if ((el = e.target.closest('[data-rappok]'))) {
-        const r = DB.rapports.find(x => x.id === el.dataset.rappok);
-        if (r) { r.statut = 'traité'; audit('Signalement traité', r.type); save(); render(); refreshCounts(); }
-        return;
-      }
-      if ((el = e.target.closest('[data-rappko]'))) {
-        const r = DB.rapports.find(x => x.id === el.dataset.rappko);
-        if (r) { r.statut = 'ignoré'; save(); render(); refreshCounts(); }
-        return;
-      }
+      if ((el = e.target.closest('[data-rappok]'))) { const r = DB.rapports.find(x => x.id === el.dataset.rappok); if (r) { r.statut = 'traité'; audit('Signalement traité', r.type); save(); render(); refreshCounts(); } return; }
+      if ((el = e.target.closest('[data-rappko]'))) { const r = DB.rapports.find(x => x.id === el.dataset.rappko); if (r) { r.statut = 'ignoré'; save(); render(); refreshCounts(); } return; }
       if ((el = e.target.closest('[data-approve]'))) { approveSource(el.dataset.approve, true); return; }
       if ((el = e.target.closest('[data-refuse]'))) { approveSource(el.dataset.refuse, false); return; }
       if (e.target.closest('#btnCheckLot')) { runLinkCheck(12); return; }
       if (e.target.closest('#btnCollectNow2')) { runCollect('manuelle'); return; }
-      if (e.target.closest('#btnStartSched')) {
-        const fi = $('#freqInput');
-        DB.settings.freq = Math.max(1, parseInt(fi ? fi.value : DB.settings.freq, 10) || 30);
-        startSched(); render(); return;
-      }
-      if (e.target.closest('#btnStopSched')) {
-        stopSched(); audit('Planificateur', 'Arrêté.'); toast('Planificateur arrêté.'); render(); return;
-      }
+      if (e.target.closest('#btnStartSched')) { const fi = $('#freqInput'); DB.settings.freq = Math.max(1, parseInt(fi ? fi.value : DB.settings.freq, 10) || 30); startSched(); render(); return; }
+      if (e.target.closest('#btnStopSched')) { stopSched(); audit('Planificateur', 'Arrêté.'); toast('Planificateur arrêté.'); render(); return; }
       if (e.target.closest('#btnWatchBO')) { watchBO(); return; }
       if (e.target.closest('#btnDetectSources')) { detectSources(); return; }
-      if (e.target.closest('#btnDigest')) {
-        DB.settings.lastDigest = nowISO(); audit('Digest', 'Généré.'); save(); renderDigest(); toast('Digest généré.', 'ok'); return;
-      }
-      if (e.target.closest('#btnCopyDigest')) {
-        navigator.clipboard.writeText(buildDigest()).then(
-          function () { toast('Digest copié (Markdown).', 'ok'); },
-          function () { toast('Copie impossible.', 'err'); }
-        ); return;
-      }
-      if (e.target.closest('#btnExportDigest')) {
-        const blob = new Blob([buildDigest()], { type: 'text/markdown' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'digest-eaf.md'; a.click();
-        URL.revokeObjectURL(a.href);
-        toast('Digest exporté.', 'ok'); return;
-      }
+      if (e.target.closest('#btnDigest')) { DB.settings.lastDigest = nowISO(); audit('Digest', 'Généré.'); save(); renderDigest(); toast('Digest généré.', 'ok'); return; }
+      if (e.target.closest('#btnCopyDigest')) { navigator.clipboard.writeText(buildDigest()).then(function () { toast('Digest copié (Markdown).', 'ok'); }, function () { toast('Copie impossible.', 'err'); }); return; }
+      if (e.target.closest('#btnExportDigest')) { const blob = new Blob([buildDigest()], { type: 'text/markdown' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'digest-eaf.md'; a.click(); URL.revokeObjectURL(a.href); toast('Digest exporté.', 'ok'); return; }
       if (e.target.closest('#btnRapp')) {
         const linkId = $('#rappLink').value, type = $('#rappType').value, msg = $('#rappMsg').value.trim();
         if (!msg) { toast('Précisez la description.', 'err'); return; }
@@ -1153,19 +1102,14 @@ function setupListeners() {
       }
       if (e.target.closest('#btnDiag')) { runDiagnostics(); return; }
       if (e.target.closest('#btnExport')) { exportJSON(); return; }
-      if (e.target.closest('#btnImport')) {
-        if (can('import')) $('#fileImport').click(); else toast('Réservé à l\'Administrateur.', 'err');
-        return;
-      }
+      if (e.target.closest('#btnImport')) { if (can('import')) $('#fileImport').click(); else toast('Réservé à l\'Administrateur.', 'err'); return; }
       if (e.target.closest('#btnReset')) {
         if (can('reset') && confirm('Réinitialiser toute la base de curation ? (Supabase écrasé au prochain save)')) {
           DB = seed(); save(); toast('Base réinitialisée.', 'ok'); render(); refreshCounts();
         }
         return;
       }
-    } catch (err) {
-      toast('Erreur : ' + err.message, 'err');
-    }
+    } catch (err) { toast('Erreur : ' + err.message, 'err'); }
   });
 
   document.addEventListener('change', function (e) {
@@ -1177,41 +1121,55 @@ function setupListeners() {
         audit('Réglage', 'Mode test : ' + (e.target.checked ? 'simulation' : 'réseau réel'));
         toast('Mode ' + (e.target.checked ? 'Simulation' : 'Réseau réel') + ' activé.');
       }
-      if (e.target.id === 'freqInput') {
-        DB.settings.freq = Math.max(1, parseInt(e.target.value, 10) || 30); save();
-        if (DB.settings.actif) startSched();
-      }
+      if (e.target.id === 'freqInput') { DB.settings.freq = Math.max(1, parseInt(e.target.value, 10) || 30); save(); if (DB.settings.actif) startSched(); }
       if (e.target.id === 'fileImport') { importJSON(e.target.files[0]); e.target.value = ''; }
-    } catch (err) {
-      toast('Erreur : ' + err.message, 'err');
-    }
+    } catch (err) { toast('Erreur : ' + err.message, 'err'); }
   });
 }
 
 /* ============================================================
-   16. INIT ASYNCHRONE (Supabase + logs)
+   ✅ CORRECTIF 3 : NORMALISATION DE L'ÉTAT (auto-réparation)
+   Garantit que toutes les clés existent et restaure les liens
+   si la base Supabase a été vidée ou corrompue.
    ============================================================ */
+function normalizeState(saved) {
+  const base = seed();
+  const st = Object.assign({}, base, saved || {});
+  st.settings = Object.assign({}, base.settings, (saved && saved.settings) || {});
+  if (!Array.isArray(st.liens) || st.liens.length === 0) st.liens = base.liens;
+  if (!Array.isArray(st.inbox)) st.inbox = [];
+  if (!Array.isArray(st.collectes)) st.collectes = [];
+  if (!Array.isArray(st.watch)) st.watch = [];
+  if (!Array.isArray(st.candidats)) st.candidats = [];
+  if (!Array.isArray(st.rapports)) st.rapports = [];
+  if (!Array.isArray(st.audit) || st.audit.length === 0) st.audit = base.audit;
+  if (!Array.isArray(st.log)) st.log = [];
+  if (!st.fingerprints || typeof st.fingerprints !== 'object') st.fingerprints = {};
+  if (!st.role) st.role = 'admin';
+  delete st.test; delete st.timestamp; delete st.message;
+  st.version = 3;
+  return st;
+}
+
+/* ---------- 16. INIT ASYNCHRONE (Supabase + normalisation) ---------- */
 (async function () {
   try {
     setupListeners();
     console.log('[INIT] 🚀 Démarrage de l\'application...');
     const savedState = await Storage.init();
-    if (savedState && savedState.version === 3 && Array.isArray(savedState.liens)) {
-      console.log('[INIT] ✅ État existant chargé depuis Supabase');
-      DB = savedState;
+    if (savedState && savedState.version === 3) {
+      console.log('[INIT] ✅ État chargé depuis Supabase, normalisation...');
+      DB = normalizeState(savedState);
     } else {
-      console.log('[INIT] 🆕 Aucun état trouvé, création d\'une base initiale');
+      console.log('[INIT] 🆕 Aucun état valide, création d\'une base initiale');
       DB = seed();
-      Storage.write(DB);
     }
+    Storage.write(DB); // persiste l'état (réparé si besoin) dans Supabase
     $('#rolePick').value = DB.role;
     updateStorageTag();
     refreshCounts();
     setView('dashboard');
-    if (DB.settings.actif) {
-      DB.settings.actif = false;
-      save();
-    }
+    if (DB.settings.actif) { DB.settings.actif = false; save(); }
     console.log('[INIT] ✅ Application prête');
   } catch (err) {
     console.error('[INIT] ❌ Erreur critique :', err);
