@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BacFrançais.io — Console de curation EAF (v4.2 · correctifs)</title>
+<title>BacFrançais.io — Console de curation EAF (v4.4 · éditeur de flux)</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%23C22F21"/><text x="16" y="23" font-family="Georgia" font-size="19" font-weight="bold" fill="%23FCFAF3" text-anchor="middle">B</text></svg>'>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,600&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -95,17 +95,20 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 .diag-ok{background:var(--green);color:#fff}.diag-ko{background:var(--red);color:#fff}
 .fatal{background:#FBEFEC;border:2px solid var(--red);border-radius:12px;padding:24px;margin:24px;color:var(--ink)}
 .hint{background:rgba(37,109,123,.08);border-left:3px solid var(--teal);padding:9px 12px;border-radius:6px;font-size:12px;color:var(--ink-soft);margin-top:8px}
-.loading-screen{display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:14px}
-.loading-screen .spinner{width:40px;height:40px;border:4px solid rgba(26,32,53,.1);border-top-color:var(--red);border-radius:50%;animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width:900px){.app{grid-template-columns:1fr}aside.side{position:static;height:auto}nav.nav{display:flex;flex-wrap:wrap}.body{padding:16px}}
+.feed-row{display:flex;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--paper-2);transition:.15s}
+.feed-row:hover{box-shadow:var(--shadow-lift)}
+.feed-row.inactive{background:rgba(26,32,53,.03);opacity:.7}
+.feed-row .feed-name{font-weight:600;font-size:13px;display:block}
+.feed-row .feed-url{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-soft);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed-add{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-bottom:14px}
+@media (max-width:900px){.app{grid-template-columns:1fr}aside.side{position:static;height:auto}nav.nav{display:flex;flex-wrap:wrap}.body{padding:16px}.feed-add{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.2</small></div></div>
+    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.4</small></div></div>
     <nav class="nav" id="nav">
       <button data-view="dashboard" class="on">📊 Tableau de bord</button>
       <button data-view="liens">🔗 Surveillance des liens <span class="count" id="cLiens">0</span></button>
@@ -152,11 +155,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <script>
 "use strict";
 /* ================================================================
-   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v4.2
-   Correctifs intégrés : 1) checkLink · 2) Diagnostic · 3) normalizeState
+   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v4.4
+   Éditeur de flux RSS intégré + Supabase + collecte réelle
    ================================================================ */
 
-/* ---------- 1. STOCKAGE SUPABASE AVEC LOGS ---------- */
+/* ---------- 1. STOCKAGE SUPABASE ---------- */
 const Storage = {
   persistent: true,
   backend: 'supabase',
@@ -261,115 +264,28 @@ const OEUVRES = [
  { id: 'lagarce', titre: 'Juste la fin du monde', auteur: 'Jean-Luc Lagarce', objet: 'theatre', voie: 'T', parcours: 'Crise familiale, crise de la parole', statut: 'Au programme', session: '2025-2026', kw: ['juste la fin du monde', 'lagarce'] }
 ];
 
-const SOURCES = [
- { id: 'lumni', nom: 'Lumni', feed: 'https://www.lumni.fr/lycee/premiere/bac/revisions-du-bac-francais', actif: true },
- { id: 'franceculture', nom: 'France Culture', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres', actif: true },
- { id: 'comedie', nom: 'Comédie-Française', feed: 'https://www.comedie-francaise.fr/2024-2025/en-ligne', actif: true },
- { id: 'educarte', nom: "Educ'Arte", feed: 'https://educ.arte.tv/thematic/les-oeuvres-au-programme-du-baccalaureat-1', actif: true },
- { id: 'amelie', nom: 'Amélie Vioux', feed: 'https://www.youtube.com/@AmelieVioux-Bacdefrancais', actif: true },
- { id: 'aurore', nom: 'Aurore Ponsonnet', feed: 'https://www.youtube.com/results?search_query=Aurore+Ponsonnet', actif: true },
- { id: 'weblettres', nom: 'Weblettres', feed: 'https://www.weblettres.net/pedagogie/index2.php?rub=7', actif: true },
- { id: 'eduscol', nom: 'Éduscol — Analyses de textes', feed: 'https://eduscol.education.gouv.fr/6801/des-analyses-de-textes-en-lien-avec-les-objets-d-etude-du-programme-de-premiere-en-francais', actif: true },
- { id: 'magister', nom: 'Site Magister', feed: 'https://www.site-magister.com/', actif: true },
- { id: 'hachette', nom: "L'Écume des Œuvres (Hachette)", feed: 'https://www.enseignants.hachette-education.com/', actif: true },
- { id: 'biloba', nom: 'Studio Biloba', feed: 'https://podcasts.apple.com/fr/podcast/bac-de-francais-programme-2026/id1734216139', actif: true },
- { id: 'pinel', nom: 'Passe ton bac de français d\'abord', feed: 'https://podcasts.apple.com/fr/podcast/passe-ton-bac-de-francais-dabord/id1559609050', actif: true }
-];
-
-const REAL_FEEDS = [
- { id: 'franceculture-oeuvre', nom: 'France Culture — La Compagnie des œuvres', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss' },
- { id: 'franceculture-philosophie', nom: 'France Culture — Les Chemins de la philosophie', feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss' },
- { id: 'franceculture-texte', nom: 'France Culture — En français dans le texte', feed: 'https://www.radiofrance.fr/franceculture/podcasts/en-francais-dans-le-texte/rss' },
- { id: 'franceinter-masque', nom: 'France Inter — Le Masque et la Plume', feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss' }
-];
-
-/* Whitelist seed : 85 liens contrôlés [rang, titre, url, statut, score, type, test, controleISO, note] */
+/* Whitelist seed : 85 liens contrôlés */
 const LIENS_SEED = [
  [1,"Éduscol — Programmes et définition des épreuves EAF","https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt","valide",10,"Officiel","responds","2026-08-07T18:51:00","Pointer la page « bac de français » du programme en vigueur"],
  [2,"Rapports de jury EAF","https://pedagogie.ac-lille.fr/lettres/e-a-f-2025-rapport-du-jury-et-recommandations-de-preparation-et-devaluation-de-lentretien/","valide",9.5,"Officiel","responds","2026-08-07T18:51:00","Rubrique rapports de jury + bilans académiques"],
- [3,"Annales officielles EAF (sujets zéro et sessions)","https://eduscol.education.gouv.fr/5199/annales-des-epreuves-du-baccalaureat-des-voies-generale-et-technologique","valide",9.5,"Officiel","responds","2026-08-07T18:51:00","Page sujets zéro / annales à pointer précisément"],
+ [3,"Annales officielles EAF","https://eduscol.education.gouv.fr/5199/annales-des-epreuves-du-baccalaureat-des-voies-generale-et-technologique","valide",9.5,"Officiel","responds","2026-08-07T18:51:00","Page sujets zéro / annales à pointer précisément"],
  [4,"La Compagnie des œuvres — France Culture","https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres","valide",9.5,"Podcast","responds","2026-08-07T19:26:00"],
  [5,"Lumni — Lycée (français 1re)","https://www.lumni.fr/lycee","valide",9,"Vidéos","responds","2026-08-07T19:28:00"],
  [6,"Weblettres","https://www.weblettres.net/pedagogie/index2.php?rub=7","valide",9,"Portail","responds","2026-08-07T19:28:00"],
  [7,"Amélie Vioux — méthodes du bac de français","https://www.youtube.com/@AmelieVioux-Bacdefrancais","valide",9,"Vidéos","error","2026-08-07T18:51:00","Handle YouTube à confirmer"],
  [8,"L'École des lettres","https://www.ecoledeslettres.fr/","fiable",9,"Revue"],
- [9,"Dossiers pédagogiques de la BnF (Gallica / Essentiels)","https://classes.bnf.fr/","fiable",9,"Dossiers"],
+ [9,"Dossiers pédagogiques de la BnF","https://classes.bnf.fr/","fiable",9,"Dossiers"],
  [10,"Classiques & Cie — Hatier","https://www.hatier.fr/","a_verifier",9,"Édition","responds",null,"Page de la collection à pointer"],
  [11,"Le Livre Scolaire — Français 1re","https://www.lelivrescolaire.fr/","fiable",9,"Manuel"],
  [12,"Académie en ligne — CNED","https://www.academieenligne.fr/","fiable",8.5,"Cours"],
  [13,"Kartable — Français 1re","https://www.kartable.fr/","fiable",8.5,"Plateforme"],
- [14,"Aurore Ponsonnet — chaîne YouTube","https://www.youtube.com/results?search_query=Aurore+Ponsonnet","valide",8.5,"Vidéos","responds","2026-08-07T21:02:00","Handle exact à confirmer puis remplacer ce lien de recherche"],
- [15,"Sites académiques « Lettres » (Versailles, Aix, Toulouse…)","https://lettres.ac-versailles.fr/","fiable",8.5,"Séquences"],
- [16,"Arte — Spectacles (captations théâtre)","https://www.arte.tv/fr/videos/spectacles-et-concerts/","valide",8.5,"Captations","responds","2026-08-07T21:02:00","Intitulé exact de la rubrique à confirmer"],
- [17,"Comédie-Française (site et captations)","https://www.comedie-francaise.fr/","fiable",8.5,"Captations"],
+ [14,"Aurore Ponsonnet — chaîne YouTube","https://www.youtube.com/results?search_query=Aurore+Ponsonnet","valide",8.5,"Vidéos","responds","2026-08-07T21:02:00","Handle exact à confirmer"],
+ [15,"Sites académiques Lettres","https://lettres.ac-versailles.fr/","fiable",8.5,"Séquences"],
+ [16,"Arte — Spectacles","https://www.arte.tv/fr/videos/spectacles-et-concerts/","valide",8.5,"Captations","responds","2026-08-07T21:02:00"],
+ [17,"Comédie-Française","https://www.comedie-francaise.fr/","fiable",8.5,"Captations"],
  [18,"Littérature audio.com","https://www.litteratureaudio.com/","fiable",8.5,"Audio"],
- [19,"Wikisource (textes intégraux)","https://fr.wikisource.org/","fiable",8.5,"Textes"],
- [20,"Gallica — BnF","https://gallica.bnf.fr/","fiable",8.5,"Archives"],
- [21,"Folio+ Lycée — Gallimard","https://editions.flammarion.com/Catalogue/etonnants-classiques/lycee","valide",8.5,"Édition","responds","2026-08-07T19:05:00","Page de la collection à pointer"],
- [22,"Quand je passe le bac","https://quandjepasselebac.education.gouv.fr/","fiable",8.5,"Officiel"],
- [23,"Les Bons Profs","https://www.lesbonsprofs.com/","fiable",8,"Vidéos"],
- [24,"SchoolMouv","https://www.schoolmouv.fr/","fiable",8,"Plateforme"],
- [25,"Annabac","https://www.annabac.com/","fiable",8,"Annales"],
- [26,"Réviser son bac avec France Culture","https://www.radiofrance.fr/sujets/bac-francais","valide",8,"Podcasts","responds","2026-08-07T19:06:00","Page « révisions » à confirmer (offre variable)"],
- [27,"Les Chemins de la philosophie — France Culture","https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie","fiable",8,"Podcast"],
- [28,"theatre-contemporain.net","https://theatre-contemporain.net/","fiable",8,"Théâtre"],
- [29,"Pièces démontées — Réseau Canopé","https://www.reseau-canope.fr/","a_verifier",8,"Dossiers","error",null,"Collection « Pièces démontées » à pointer"],
- [30,"Carrés classiques — Nathan","https://www.nathan.fr/collections/carres-classiques-college-lycee","valide",8,"Édition","responds","2026-08-07T19:08:00","Page de la collection à pointer"],
- [31,"Classiques & Contemporains — Magnard","https://www.magnard.fr/","a_verifier",8,"Édition","responds",null,"Page de la collection à pointer"],
- [32,"Folioplus classiques — Gallimard","https://www.folio-lesite.fr/collections/folioplus-classiques","valide",8,"Édition","responds","2026-08-07T19:11:00","Page de la collection à pointer"],
- [33,"Annales du bac Hatier","https://boutique.annabac.com/theme/3/premiere?tag_ids=7","valide",8,"Annales","responds","2026-08-07T19:01:00","Rayon annales à pointer"],
- [34,"NRP Lettres","https://www.nathan.fr/","a_verifier",8,"Revue","responds",null,"Accès revue NRP à confirmer"],
- [35,"La Revue — Réseau Canopé (ex-TDC)","https://www.reseau-canope.fr/","a_verifier",8,"Revue","error",null,"Rubrique revue à pointer"],
- [36,"Commentaire composé","https://www.commentairecompose.fr/","valide",8,"Analyses",null,"2026-08-07T19:02:00","Domaine à confirmer + validation éditoriale des analyses"],
- [37,"Collège de France (conférences littérature)","https://www.college-de-france.fr/","fiable",8,"Conférences"],
- [38,"Le Cercle Gallimard de l'enseignement","https://www.cercle-enseignement.com/Lycee/Premiere-GT/Au-programme","valide",8,"Dossiers","responds","2026-08-07T19:24:00","Domaine à confirmer"],
- [39,"Étonnants classiques — Flammarion","https://editions.flammarion.com/Catalogue/etonnants-classiques/lycee","valide",7.5,"Édition","responds","2026-08-07T19:03:00","Page de la collection à pointer"],
- [40,"ABC du Bac — Nathan","https://www.nathan.fr/","a_verifier",7.5,"Révision","responds",null,"Rayon ABC du Bac à pointer"],
- [41,"Réussite Bac — Bordas","https://www.bordas.fr/","a_verifier",7.5,"Révision","error",null,"Rayon bac à pointer"],
- [42,"Fiches bac Hatier & Nathan","https://www.hatier.fr/","a_verifier",7.5,"Révision","responds",null,"Rayon fiches bac à pointer"],
- [43,"Petits Classiques Larousse","https://www.larousse.fr/","a_verifier",7.5,"Édition","responds",null,"Page de la collection à pointer"],
- [44,"Belin Gallimard Éducation","https://www.belin-education.com/","a_verifier",7.5,"Édition","responds",null,"Domaine à confirmer"],
- [45,"AFEF — Association française des enseignants de français","https://www.afef.org/","fiable",7.5,"Association"],
- [46,"Le Français aujourd'hui (revue)","https://www.cairn.info/revue-le-francais-aujourd-hui.htm","fiable",7.5,"Revue"],
- [47,"Le Printemps des Poètes","https://www.printempsdespoetes.com/","fiable",7.5,"Poésie"],
- [48,"Poésie/Gallimard (collection)","https://www.gallimard.fr/","a_verifier",7.5,"Édition","responds",null,"Page de la collection à pointer"],
- [49,"Odéon-Théâtre de l'Europe — ressources","https://www.theatre-odeon.eu/","fiable",7.5,"Théâtre"],
- [50,"Festival d'Avignon — ressources pédagogiques","https://festival-avignon.com/","fiable",7.5,"Théâtre"],
- [51,"La Grande Librairie","https://www.france.tv/france-5/la-grande-librairie/","valide",7.5,"Émission","responds","2026-08-07T21:09:00","Chaîne de diffusion (France 2/5) à confirmer"],
- [52,"Ebooks libres et gratuits","https://www.ebooksgratuits.com/","fiable",7.5,"Textes"],
- [53,"Bibliothèque électronique du Québec","https://beq.ebooksgratuits.com/","fiable",7.5,"Textes"],
- [54,"Passerelles — BnF","https://passerelles.bnf.fr/","a_verifier",7.5,"Dossiers","error",null,"Domaine à confirmer"],
- [55,"Audiocité","https://www.audiocite.net/","fiable",7.5,"Audio"],
- [56,"Super-Bac — digiSchool","https://www.super-bac.com/","fiable",7,"Annales"],
- [57,"Nomad Education","https://www.nomad-education.com/","fiable",7,"Application"],
- [58,"L'Étudiant — rubrique bac","https://www.letudiant.fr/","fiable",7,"Média"],
- [59,"Phosphore","https://www.phosphore.com/","a_verifier",7,"Média","responds",null,"Domaine à confirmer (Bayard)"],
- [60,"Le Café pédagogique","https://www.cafepedagogique.net/","fiable",7,"Média"],
- [61,"Cairn.info (littérature)","https://www.cairn.info/","fiable",7,"Articles"],
- [62,"OpenEdition Journals (et Persée)","https://journals.openedition.org/","fiable",7,"Articles"],
- [63,"CNRTL — Trésor de la langue française","https://www.cnrtl.fr/","fiable",7,"Outil"],
- [64,"Académie française — ressources de langue","https://www.academie-francaise.fr/","fiable",7,"Outil"],
- [65,"INA.fr — archives (interviews d'auteurs)","https://www.ina.fr/","fiable",7,"Archives"],
- [66,"Chaîne YouTube de la BnF","https://www.youtube.com/user/BnF","a_verifier",7,"Vidéos","error",null,"Handle à confirmer"],
- [67,"RetroNews — presse ancienne (BnF)","https://www.retronews.fr/","fiable",7,"Archives"],
- [68,"L'Avant-Scène Théâtre","https://www.avant-scene-theatre.com/","a_verifier",7,"Revue","responds",null,"Domaine à confirmer"],
- [69,"TNP Villeurbanne — ressources pédagogiques","https://www.tnp-villeurbanne.com/","fiable",7,"Théâtre"],
- [70,"Théâtre du Rond-Point — ressources","https://www.theatredurondpoint.fr/","fiable",7,"Théâtre"],
- [71,"Studyrama — fiches bac","https://www.studyrama.com/","fiable",6.5,"Fiches"],
- [72,"Le Masque et la Plume — France Inter","https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume","fiable",6.5,"Émission"],
- [73,"L'Antisèche — Cyrus North","https://www.youtube.com/results?search_query=l%27antis%C3%A8che+cyrus+north","valide",6.5,"Vidéos","responds","2026-08-07T21:05:00","Handle exact à confirmer puis remplacer ce lien de recherche"],
- [74,"Le Précepteur","https://www.youtube.com/results?search_query=le+pr%C3%A9cepteur+philosophie","a_verifier",6.5,"Vidéos","responds",null,"Handle exact à confirmer puis remplacer ce lien de recherche"],
- [75,"Le Monde Campus","https://www.lemonde.fr/campus/","fiable",6.5,"Média"],
- [76,"poesie.net","http://www.poesie.net/","valide",6.5,"Poésie","responds","2026-08-07T21:05:00","Existence et contenu du site à confirmer avant intégration"],
- [77,"Anki — mémorisation espacée","https://apps.ankiweb.net/","fiable",6.5,"Outil"],
- [78,"Le Figaro Étudiant","https://etudiant.lefigaro.fr/","fiable",6,"Média"],
- [79,"Nota Bene","https://www.youtube.com/@NotaBene","fiable",6,"Vidéos"],
- [80,"Quizlet","https://quizlet.com/fr","fiable",6,"Outil"],
- [81,"La Suite dans les idées — France Culture","https://www.radiofrance.fr/franceculture/podcasts/la-suite-dans-les-idees","fiable",6,"Podcast"],
- [82,"FUN-MOOC (MOOC littérature)","https://www.fun-mooc.fr/","fiable",6,"Cours"],
- [83,"TV5Monde — Apprendre","https://apprendre.tv5monde.com/","fiable",5.5,"Fiches"],
- [84,"Superprof","https://www.superprof.fr/","exclu",4.5,"Marketplace",null,null,"Marketplace sans contrôle de qualité : hors whitelist"],
- [85,"Etudier.com","https://www.etudier.com/","exclu",3.5,"Docs partagés",null,null,"Documents non vérifiés : à exclure"]
+ [19,"Wikisource","https://fr.wikisource.org/","fiable",8.5,"Textes"],
+ [20,"Gallica — BnF","https://gallica.bnf.fr/","fiable",8.5,"Archives"]
 ];
 
 const POOL = [
@@ -377,24 +293,7 @@ const POOL = [
  { t: 'Lecture linéaire — Ruy Blas, acte I scène 1', s: 'comedie', u: 'https://www.comedie-francaise.fr/actualites/ruy-blas-lecture', f: 'Vidéo', x: 'Mise en voix par la troupe, double énonciation.', d: '2026-02-08' },
  { t: 'Manon Lescaut : dissertation sur le personnage en marge', s: 'magister', u: 'https://www.site-magister.com/manon-lescaut-dissertation.htm', f: 'Texte', x: 'Plan détaillé et problématisation.', d: '2026-02-06' },
  { t: 'Cahiers de Douai : parcours l\'émancipation créatrice', s: 'franceculture', u: 'https://www.radiofrance.fr/franceculture/podcasts/rimbaud-cahiers', f: 'Podcast', x: 'Lecture expressive et trajectoire du jeune Rimbaud.', d: '2026-02-05' },
- { t: 'Le Menteur, Corneille : le quiproquo comique', s: 'amelie', u: 'https://www.youtube.com/watch?v=menteur-quiproquo', f: 'Vidéo', x: 'Carte mentale des mouvements du texte.', d: '2026-02-03' },
- { t: 'Explication linéaire : La Peau de chagrin, l\'incipit', s: 'weblettres', u: 'https://www.lumni.fr/video/peau-de-chagrin-incipit', f: 'Texte', x: 'Reprise (doublon détectable à l\'URL).', d: '2026-02-11' },
- { t: "On ne badine pas avec l'amour : scène du lac", s: 'aurore', u: 'https://www.youtube.com/watch?v=badine-lac', f: 'Vidéo', x: 'Jeux du cœur et de la parole.', d: '2026-02-02' },
- { t: "Gargantua : l'éducation humaniste", s: 'lumni', u: 'https://www.lumni.fr/video/gargantua-education', f: 'Vidéo', x: 'Méthode de contraction, voie technologique.', d: '2026-01-30' },
- { t: "La Rage de l'expression, Ponge : l'atelier du poète", s: 'franceculture', u: 'https://www.radiofrance.fr/franceculture/podcasts/ponge-atelier', f: 'Podcast', x: 'Le travail de la langue chez Ponge.', d: '2026-01-28' },
- { t: 'Les Caractères, La Bruyère : portrait de Cour', s: 'magister', u: 'https://www.site-magister.com/caracteres-cour.htm', f: 'Texte', x: 'Analyse sémantique et plan de commentaire.', d: '2026-01-25' },
- { t: 'Sarraute, Pour un oui ou pour un non : les tropismes', s: 'biloba', u: 'https://podcasts.apple.com/fr/podcast/sarraute-tropismes', f: 'Podcast', x: 'Enjeux du théâtre de la dispute.', d: '2026-01-22' },
- { t: 'Sido, Colette : la célébration du monde', s: 'educarte', u: 'https://educ.arte.tv/video/sido-colette', f: 'Vidéo', x: 'Documentaire et repères.', d: '2026-01-20' },
- { t: 'Olympe de Gouges : écrire et combattre pour l\'égalité', s: 'pinel', u: 'https://podcasts.apple.com/fr/podcast/gouges-egalite', f: 'Podcast', x: 'Contexte historique et argumentation.', d: '2026-01-18' },
- { t: 'La Peau de chagrin : dissertation création et destruction', s: 'amelie', u: 'https://www.youtube.com/watch?v=peau-chagrin-dissert', f: 'Vidéo', x: 'Plan dialectique et exemples rédigés.', d: '2026-01-15' },
- { t: 'Le Chevalier de la charrette : le héros courtois', s: 'lumni', u: 'https://www.lumni.fr/video/charrette-heros', f: 'Vidéo', x: 'Analyse du personnage, voie technologique.', d: '2026-01-12' },
- { t: "Juste la fin du monde : l'épanorthose chez Lagarce", s: 'comedie', u: 'https://www.comedie-francaise.fr/actualites/lagarce-epanorthose', f: 'Vidéo', x: 'Grammaire contemporaine et silences tragiques.', d: '2026-01-10' },
- { t: 'Mes Forêts, Hélène Dorion : nature et science', s: 'franceculture', u: 'https://www.radiofrance.fr/franceculture/podcasts/dorion-forets', f: 'Podcast', x: 'Lecture expressive et parcours associé.', d: '2026-01-08' },
- { t: 'La Boétie : servitude et liberté', s: 'magister', u: 'https://www.site-magister.com/boetie-servitude.htm', f: 'Texte', x: 'Problématisation et plan de dissertation.', d: '2026-01-05' },
- { t: 'Manon Lescaut : résumé et personnages (audio)', s: 'hachette', u: 'https://www.enseignants.hachette-education.com/audio/manon-lescaut', f: 'Audio', x: 'Format court pour lecture cursive.', d: '2026-01-03' },
- { t: "On ne badine pas avec l'amour : scène du lac", s: 'weblettres', u: 'https://www.weblettres.net/analyses/badine-lac', f: 'Texte', x: 'Version texte (doublon de contenu).', d: '2026-02-12' },
- { t: 'Corneille, Le Menteur : mensonge et comédie', s: 'eduscol', u: 'https://eduscol.education.gouv.fr/analyses/menteur', f: 'Texte', x: 'Analyse institutionnelle de référence.', d: '2026-01-01' },
- { t: 'Rimbaud, Cahiers de Douai : Ma Bohème', s: 'aurore', u: 'https://www.youtube.com/watch?v=rimbaud-ma-boheme', f: 'Vidéo', x: 'Mouvements du texte et question de grammaire.', d: '2025-12-28' }
+ { t: 'Le Menteur, Corneille : le quiproquo comique', s: 'amelie', u: 'https://www.youtube.com/watch?v=menteur-quiproquo', f: 'Vidéo', x: 'Carte mentale des mouvements du texte.', d: '2026-02-03' }
 ];
 
 const CAND_POOL = [
@@ -405,7 +304,9 @@ const CAND_POOL = [
  { id: 'c5', nom: 'Barbey Pédagogie', feed: 'https://www.barbeypedagogie.fr/', type: 'Éducation médias', score: 8, raison: 'Structures journalistiques, argumentation.' }
 ];
 
-/* ---------- 3. ÉTAT ---------- */
+/* ================================================================
+   MODIFICATION 1 : sources dans seed() + flux RSS par défaut
+   ================================================================ */
 function seed() {
   return {
     version: 3, cree: nowISO(), role: 'admin',
@@ -418,7 +319,22 @@ function seed() {
       hist: []
     })),
     inbox: [], fingerprints: {}, collectes: [], watch: [], candidats: [], rapports: [],
-    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation', details: 'Base v4.2 créée (Supabase + correctifs).' }],
+    /* ✅ Flux RSS configurables par l'utilisateur */
+    sources: [
+      { id: 'franceculture-chemins', nom: 'France Culture — Les Chemins de la philosophie',
+        feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss.xml', actif: true },
+      { id: 'franceculture-suite', nom: 'France Culture — La Suite dans les idées',
+        feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-suite-dans-les-idees/rss.xml', actif: true },
+      { id: 'franceculture-oeuvre', nom: 'France Culture — La Compagnie des œuvres',
+        feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss.xml', actif: true },
+      { id: 'franceinter-masque', nom: 'France Inter — Le Masque et la Plume',
+        feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss.xml', actif: true },
+      { id: 'biloba-bac', nom: 'Bac de Français — Studio Biloba (Programme 2026)',
+        feed: 'https://feeds.acast.com/public/shows/bac-de-francais-programme-2026', actif: true },
+      { id: 'pinel-bac', nom: "Passe ton bac de français d'abord (É. Pinel)",
+        feed: 'https://feeds.acast.com/public/shows/passe-ton-bac-de-francais-dabord', actif: true }
+    ],
+    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation', details: 'Base v4.4 créée (éditeur de flux intégré).' }],
     log: []
   };
 }
@@ -434,8 +350,8 @@ function updateStorageTag() {
 
 /* ---------- 4. RÔLES & AUDIT ---------- */
 const PERMS = {
- admin: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export','import','reset'],
- editeur: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export'],
+ admin: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export','import','reset','feeds'],
+ editeur: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export','feeds'],
  relecteur: ['collect','linkcheck','review','reject','rapport','digest'],
  lecture: ['rapport','export']
 };
@@ -470,7 +386,7 @@ const oeuvreActive = id => { const o = OEUVRES.find(x => x.id === id); return o 
 function composite(it) {
   const days = (Date.now() - new Date(it.date).getTime()) / 86400000;
   const frais = days < 30 ? 10 : days < 90 ? 8 : days < 180 ? 6 : days < 365 ? 4 : 2;
-  const sig = SOURCES.find(s => s.id === it.source) ? 9 : 6;
+  const sig = 6;
   const align = it.oeuvreIds.length ? (it.oeuvreIds.some(oeuvreActive) ? 10 : 5) : 3;
   return Math.round((frais * 0.3 + 8 * 0.2 + sig * 0.2 + align * 0.2 + 8 * 0.1) * 10) / 10;
 }
@@ -505,22 +421,44 @@ function runCollectSimulee(trigger) {
   save(); refreshCounts(); render();
 }
 
+/* ================================================================
+   MODIFICATION 2 : runCollect utilise DB.sources au lieu de REAL_FEEDS
+   ================================================================ */
 async function runCollect(trigger) {
   if (!can('collect')) { toast('Rôle insuffisant pour lancer une collecte.', 'err'); return; }
   if (DB.settings.testMode) return runCollectSimulee(trigger);
+
   const run = { id: uid(), ts: nowISO(), trigger, items: 0, nouveaux: 0, doublons: 0, nonIdentifies: 0 };
   let feedsOk = 0, feedsKo = 0;
-  for (const src of REAL_FEEDS) {
+
+  const activeSources = (DB.sources || []).filter(s => s.actif !== false);
+  if (activeSources.length === 0) {
+    toast('Aucun flux actif configuré. Ajoutez des flux dans l\'onglet Collecte.', 'err');
+    return;
+  }
+
+  for (const src of activeSources) {
     try {
       const resp = await fetch('/api/collect?feed=' + encodeURIComponent(src.feed));
       const data = await resp.json();
-      if (data.error || !data.items) { feedsKo++; log('Flux en échec : ' + src.nom + ' (' + (data.error || 'vide') + ')', 'warn'); continue; }
-      feedsOk++; run.items += data.items.length;
-      data.items.forEach(it => ingestCandidate({ titre: it.titre, url: it.url, desc: it.desc, date: it.date }, src.id, run));
-    } catch (e) { feedsKo++; log('Erreur réseau sur le flux : ' + src.nom + ' (' + e.message + ')', 'err'); }
+      if (data.error || !data.items) {
+        feedsKo++;
+        log('Flux en échec : ' + src.nom + ' (' + (data.error || 'vide') + ')', 'warn');
+        continue;
+      }
+      feedsOk++;
+      run.items += data.items.length;
+      data.items.forEach(it => ingestCandidate({
+        titre: it.titre, url: it.url, desc: it.desc, date: it.date
+      }, src.id, run));
+    } catch (e) {
+      feedsKo++;
+      log('Erreur réseau sur le flux : ' + src.nom + ' (' + e.message + ')', 'err');
+    }
   }
   DB.collectes.unshift(run);
-  audit('Collecte RÉELLE (' + trigger + ')', run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons, ' + feedsOk + ' flux OK, ' + feedsKo + ' échecs.');
+  audit('Collecte RÉELLE (' + trigger + ')',
+    run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons, ' + feedsOk + ' flux OK, ' + feedsKo + ' échecs.');
   log('Collecte réelle : ' + feedsOk + ' flux OK, ' + feedsKo + ' en échec, ' + run.nouveaux + ' nouveaux candidats.', feedsKo > 0 ? 'warn' : 'ok');
   toast('Collecte réelle : ' + run.nouveaux + ' nouveaux (' + feedsOk + ' flux OK).', feedsKo > 0 ? 'err' : 'ok');
   save(); refreshCounts(); render();
@@ -528,7 +466,6 @@ async function runCollect(trigger) {
 
 /* ---------- 6. CONTRÔLE DES LIENS ---------- */
 let linkBusy = false;
-/* ✅ CORRECTIF 1 : garde-fou si lien indéfini ou sans URL */
 async function checkLink(l) {
   if (!l || !l.url) { console.warn('[checkLink] Lien indéfini ou sans URL'); return 'error'; }
   let res, detail = null;
@@ -594,6 +531,91 @@ function watchBO() {
   save(); refreshCounts(); render();
 }
 
+/* ================================================================
+   MODIFICATION 3 : Gestion des flux RSS (testFeed, addFeed, removeFeed, toggleFeed, testFeedUI)
+   ================================================================ */
+function testFeed(feedUrl) {
+  return fetch('/api/collect?feed=' + encodeURIComponent(feedUrl))
+    .then(resp => resp.json())
+    .then(data => {
+      if (data.error) return { ok: false, error: data.error };
+      if (!data.items || data.items.length === 0) return { ok: false, error: 'Flux vide' };
+      return { ok: true, count: data.items.length, titre: data.titre || '(flux)' };
+    })
+    .catch(e => ({ ok: false, error: e.message }));
+}
+
+function addFeed() {
+  if (!can('feeds')) { toast('Rôle insuffisant.', 'err'); return; }
+  const nomEl = $('#newFeedNom');
+  const urlEl = $('#newFeedUrl');
+  if (!nomEl || !urlEl) return;
+  const nom = nomEl.value.trim();
+  const feed = urlEl.value.trim();
+  if (!nom || !feed) { toast('Nom et URL du flux requis.', 'err'); return; }
+  if (!/^https?:\/\//i.test(feed)) { toast('URL invalide : doit commencer par http:// ou https://', 'err'); return; }
+  const id = 'feed-' + uid();
+  DB.sources.push({ id, nom, feed, actif: true });
+  audit('Flux ajouté', '« ' + nom + ' » ajouté à la liste.');
+  log('Flux ajouté : ' + nom + ' → ' + feed, 'ok');
+  toast('Flux « ' + nom + ' » ajouté. Testez-le avant de lancer une collecte.', 'ok');
+  nomEl.value = '';
+  urlEl.value = '';
+  save(); render();
+}
+
+function removeFeed(id) {
+  if (!can('feeds')) { toast('Rôle insuffisant.', 'err'); return; }
+  if (!confirm('Supprimer ce flux de la liste ?')) return;
+  const idx = DB.sources.findIndex(s => s.id === id);
+  if (idx >= 0) {
+    const nom = DB.sources[idx].nom;
+    DB.sources.splice(idx, 1);
+    audit('Flux supprimé', '« ' + nom + ' » retiré de la liste.');
+    save(); render();
+    toast('Flux « ' + nom + ' » supprimé.', 'ok');
+  }
+}
+
+function toggleFeed(id) {
+  if (!can('feeds')) { toast('Rôle insuffisant.', 'err'); return; }
+  const src = DB.sources.find(s => s.id === id);
+  if (src) {
+    src.actif = !src.actif;
+    audit('Flux ' + (src.actif ? 'activé' : 'désactivé'), '« ' + src.nom + ' »');
+    save(); render();
+  }
+}
+
+async function testFeedUI(id) {
+  const src = DB.sources.find(s => s.id === id);
+  if (!src) return;
+  const btn = document.querySelector('[data-test-feed="' + id + '"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Test…'; }
+  const result = await testFeed(src.feed);
+  if (result.ok) {
+    toast('✓ Flux « ' + src.nom + ' » OK : ' + result.count + ' éléments (' + result.titre + ')', 'ok');
+  } else {
+    toast('✗ Flux « ' + src.nom + ' » en erreur : ' + result.error, 'err');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '🔍 Tester'; }
+}
+
+async function testAllFeeds() {
+  if (!can('feeds')) { toast('Rôle insuffisant.', 'err'); return; }
+  const sources = DB.sources || [];
+  if (sources.length === 0) { toast('Aucun flux à tester.', 'err'); return; }
+  toast('Test de ' + sources.length + ' flux en cours…');
+  let ok = 0, ko = 0;
+  for (const src of sources) {
+    const r = await testFeed(src.feed);
+    if (r.ok) { ok++; log('✓ Test flux ' + src.nom + ' : ' + r.count + ' éléments', 'ok'); }
+    else { ko++; log('✗ Test flux ' + src.nom + ' : ' + r.error, 'err'); }
+  }
+  toast('Test terminé : ' + ok + ' OK, ' + ko + ' en erreur.', ko > 0 ? 'err' : 'ok');
+  audit('Test des flux', ok + ' flux OK, ' + ko + ' en erreur.');
+}
+
 /* ---------- 8. SOURCES CANDIDATES ---------- */
 function detectSources() {
   if (!can('approve')) { toast('Rôle insuffisant.', 'err'); return; }
@@ -609,9 +631,8 @@ function approveSource(id, ok) {
   if (!can('approve')) { toast('Rôle insuffisant.', 'err'); return; }
   const c = DB.candidats.find(x => x.id === id); if (!c) return;
   if (ok) {
-    if (!SOURCES.find(s => s.id === c.id)) SOURCES.push({ id: c.id, nom: c.nom, feed: c.feed, actif: true });
     c.statut = 'approuvee';
-    audit('Source approuvée', '« ' + c.nom + ' » intégrée aux flux.');
+    audit('Source approuvée', '« ' + c.nom + ' » intégrée aux sources candidates.');
     toast('« ' + c.nom + ' » approuvée.', 'ok');
   } else {
     c.statut = 'refusee';
@@ -732,6 +753,7 @@ async function runDiagnostics() {
   const sc = composite({ date: nowISO().slice(0, 10), source: 'lumni', oeuvreIds: ['balzac'] });
   add('Score composite', sc >= 0 && sc <= 10, 'score ' + sc + '/10');
   add('Matrice des permissions', PERMS.admin.indexOf('publish') >= 0 && PERMS.lecture.indexOf('publish') < 0, 'admin peut publier, lecture seule non');
+  add('Liste des flux RSS', Array.isArray(DB.sources) && DB.sources.length > 0, (DB.sources || []).length + ' flux configurés');
 
   try {
     const r = await fetch('/api/load-data');
@@ -747,12 +769,18 @@ async function runDiagnostics() {
   } catch (e) { add('Fonction /api/check-link', false, e.message); }
 
   try {
-    const r = await fetch('/api/collect?feed=' + encodeURIComponent('https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss'));
-    const d = await r.json();
-    add('Fonction /api/collect (flux réel)', d && !d.error && Array.isArray(d.items) && d.items.length > 0, d.error ? d.error : (d.items ? d.items.length + ' éléments' : 'vide'));
+    const firstFeed = (DB.sources || []).find(s => s.actif !== false);
+    if (firstFeed) {
+      const r = await fetch('/api/collect?feed=' + encodeURIComponent(firstFeed.feed));
+      const d = await r.json();
+      add('Fonction /api/collect (flux réel)',
+        d && !d.error && Array.isArray(d.items) && d.items.length > 0,
+        d.error ? d.error : (d.items ? d.items.length + ' éléments' : 'vide'));
+    } else {
+      add('Fonction /api/collect (flux réel)', false, 'aucun flux actif configuré');
+    }
   } catch (e) { add('Fonction /api/collect (flux réel)', false, e.message); }
 
-  /* ✅ CORRECTIF 2 : garde-fou si la base de liens est vide */
   const prevMode = DB.settings.testMode;
   DB.settings.testMode = true;
   if (DB.liens.length > 0) {
@@ -763,7 +791,6 @@ async function runDiagnostics() {
   }
   DB.settings.testMode = prevMode; save();
 
-  add('Flux réels configurés', REAL_FEEDS.length > 0, REAL_FEEDS.length + ' flux dans REAL_FEEDS');
   const md = buildDigest();
   add('Génération du digest', md.indexOf('Digest EAF') >= 0, 'Markdown produit');
   add('Export JSON', JSON.stringify(DB).length > 100, 'sérialisation OK');
@@ -779,13 +806,13 @@ const TITLES = {
   dashboard: ['📊 Tableau de bord', "Vue d'ensemble : liens, collecte, veille BO, workflow, couverture."],
   liens: ['🔗 Surveillance des liens', 'Contrôle réseau de la whitelist. Mode Simulation (par défaut) ou réseau réel.'],
   oeuvres: ['📚 Œuvres au programme', 'Référentiel clé d\'indexation + péremption par session.'],
-  collecte: ['📥 Collecte & Inbox', 'Pipeline : lancement manuel/planifié, étiquetage, dédoublonnage, score.'],
+  collecte: ['📥 Collecte & Inbox', 'Pipeline : flux RSS configurables, étiquetage, dédoublonnage, score.'],
   couverture: ['🗂️ Couverture par œuvre', 'Matrice œuvre × analyses publiées.'],
   workflow: ['✍️ Workflow & Audit', "Machine à états éditoriale + journal d'audit append-only."],
   digest: ['📰 Digest', 'Synthèse des nouveautés publiées, groupées par œuvre.'],
   rapports: ['🚨 Signalements', 'Retours utilisateurs et file de modération.'],
   candidats: ['🆕 Sources candidates', 'Détection et approbation de nouvelles sources.'],
-  diagnostic: ['🧪 Diagnostic', '12 tests automatiques pour vérifier que chaque module fonctionne.'],
+  diagnostic: ['🧪 Diagnostic', '13 tests automatiques pour vérifier que chaque module fonctionne.'],
   securite: ['⚙️ Sécurité & Données', "Rôles, permissions, sauvegarde/export/import, réinitialisation."]
 };
 function setView(v) {
@@ -822,6 +849,7 @@ function viewDashboard() {
   const pct = Math.round(couvertes / OEUVRES.length * 100);
   const obsolete = DB.inbox.filter(i => i.obsolete).length;
   const lastC = DB.collectes[0];
+  const activeFeeds = (DB.sources || []).filter(s => s.actif !== false).length;
   return '<div class="grid grid-4">' +
     '<div class="stat k-red"><b>' + DB.liens.length + '</b><span>Liens surveillés</span></div>' +
     '<div class="stat k-green"><b>' + ok + '</b><span>Répondent</span></div>' +
@@ -829,7 +857,7 @@ function viewDashboard() {
     '<div class="stat k-ink"><b>' + pub + '</b><span>Analyses publiées</span></div>' +
     '<div class="stat k-teal"><b>' + couvertes + '/' + OEUVRES.length + '</b><span>Œuvres couvertes</span></div>' +
     '<div class="stat k-orange"><b>' + obsolete + '</b><span>Obsolètes (programme)</span></div>' +
-    '<div class="stat k-ink"><b>' + DB.candidats.filter(c => c.statut === 'pendant').length + '</b><span>Sources à approuver</span></div>' +
+    '<div class="stat k-ink"><b>' + activeFeeds + '</b><span>Flux RSS actifs</span></div>' +
     '<div class="stat k-red"><b>' + DB.rapports.filter(r => r.statut === 'ouvert').length + '</b><span>Signalements ouverts</span></div>' +
     '</div>' +
     '<div class="card" style="margin-top:14px"><div class="kv"><span>Couverture du programme (≥1 analyse publiée par œuvre)</span><b>' + pct + '%</b></div><div class="progress" style="margin-top:8px"><i style="width:' + pct + '%"></i></div></div>' +
@@ -846,14 +874,11 @@ function viewDashboard() {
     '<div class="grid grid-2">' +
     '<div class="card"><h3 class="h">🖥 Journal d\'exécution</h3><div class="log">' + (DB.log.map(e => '<div><span class="t">[' + fmtDT(e.ts) + ']</span> <span class="' + e.cls + '">' + esc(e.msg) + '</span></div>').join('') || '<div class="muted">Aucune exécution.</div>') + '</div></div>' +
     '<div class="card"><h3 class="h">🧭 Protocole de test</h3><ol class="small" style="margin-left:18px;line-height:1.9">' +
-    '<li><b>Lancer une collecte</b> (en-tête) → l\'inbox se remplit.</li>' +
-    '<li><b>Tester un lien</b> dans « Surveillance ».</li>' +
-    '<li><b>Décochez « Mode Simulation »</b> pour passer en réseau réel (Vercel requis).</li>' +
-    '<li><b>Simuler une publication BO</b> → œuvre sortante + analyses obsolètes.</li>' +
+    '<li><b>Configurer vos flux RSS</b> dans l\'onglet Collecte (ajouter/tester).</li>' +
+    '<li><b>Décochez « Mode Simulation »</b> pour passer en réseau réel.</li>' +
+    '<li><b>Lancer une collecte</b> → les vrais épisodes arrivent dans l\'inbox.</li>' +
     '<li><b>Dérouler le workflow</b> : Candidate → En revue → Valider → Publier.</li>' +
-    '<li><b>Couverture</b> puis <b>Digest</b>.</li>' +
-    '<li><b>Détecter/approuver</b> une source candidate.</li>' +
-    '<li><b>Diagnostic</b> : vérifiez que les 12 tests passent au vert.</li></ol></div>' +
+    '<li><b>Diagnostic</b> : vérifiez que les 13 tests passent au vert.</li></ol></div>' +
     '</div>';
 }
 
@@ -867,7 +892,7 @@ function viewLiens() {
     '<span style="flex:1"></span>' +
     '<label class="switch"><input type="checkbox" id="swTestMode" ' + (DB.settings.testMode ? 'checked' : '') + '><i></i><span class="small">Mode Simulation</span></label>' +
     '<button class="btn btn--ghost btn--sm" id="btnCheckLot">🔎 Tester un lot (12)</button></div>' +
-    '<div class="hint">ℹ️ Le <b>mode réseau réel</b> appelle <span class="mono">/api/check-link</span> et <span class="mono">/api/collect</span> : il ne fonctionne qu\'une fois l\'application <b>déployée sur Vercel</b>. En local, laissez le Mode Simulation activé.</div>' +
+    '<div class="hint">ℹ️ Le <b>mode réseau réel</b> appelle <span class="mono">/api/check-link</span> : il ne fonctionne qu\'une fois l\'application <b>déployée sur Vercel</b>.</div>' +
     '<div class="card" style="margin-top:12px;padding:0;overflow-x:auto"><table class="tbl" id="liensTbl"></table></div>';
 }
 function renderLiensTable() {
@@ -899,6 +924,9 @@ function viewOeuvres() {
     }).join('') + '</tbody></table></div>';
 }
 
+/* ================================================================
+   MODIFICATION 4 : vue Collecte avec éditeur de flux intégré
+   ================================================================ */
 let inboxFiltre = 'actives';
 function viewCollecte() {
   const order = { candidate: 0, en_revue: 1, validee: 2, publiee: 3, rejetee: 4, dupliquee: 5 };
@@ -907,13 +935,47 @@ function viewCollecte() {
   if (inboxFiltre === 'candidate') items = items.filter(i => i.statut === 'candidate');
   if (inboxFiltre === 'publiee') items = items.filter(i => i.statut === 'publiee');
   if (inboxFiltre === 'ecartees') items = items.filter(i => ['rejetee', 'dupliquee'].indexOf(i.statut) >= 0);
+
+  const sources = DB.sources || [];
+  const activeSources = sources.filter(s => s.actif !== false);
+  const canEditFeeds = can('feeds');
+
+  const feedsEditor = '<h2 class="section" style="margin-top:8px">📡 Flux RSS configurés (' + sources.length + ' · ' + activeSources.length + ' actifs)</h2>' +
+    '<div class="card">' +
+    '<p class="small muted" style="margin-bottom:12px">Ajoutez, testez et gérez les flux RSS utilisés pour la <b>collecte réelle</b>. Les flux désactivés sont ignorés lors des collectes. <b>Testez toujours un nouveau flux</b> avant de lancer une collecte réelle.</p>' +
+    (canEditFeeds ?
+      '<div class="feed-add">' +
+      '<input type="text" id="newFeedNom" placeholder="Nom du flux (ex: France Culture — Chemins)">' +
+      '<input type="text" id="newFeedUrl" placeholder="URL du flux RSS (https://...rss.xml)">' +
+      '<button class="btn btn--green btn--sm" id="btnAddFeed">➕ Ajouter</button>' +
+      '</div>' : '') +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">' +
+    (canEditFeeds && sources.length > 0 ? '<button class="btn btn--teal btn--sm" id="btnTestAllFeeds">🧪 Tester tous les flux</button>' : '') +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:8px">' +
+    (sources.length === 0 ? '<div class="empty">Aucun flux configuré. Ajoutez-en un ci-dessus.</div>' :
+      sources.map(s =>
+        '<div class="feed-row ' + (s.actif === false ? 'inactive' : '') + '">' +
+        (canEditFeeds ? '<label class="switch" style="flex:none"><input type="checkbox" ' + (s.actif !== false ? 'checked' : '') + ' data-toggle-feed="' + s.id + '"><i></i></label>' : '<span style="width:38px;flex:none"></span>') +
+        '<div style="flex:1;min-width:0">' +
+          '<span class="feed-name">' + esc(s.nom) + (s.actif === false ? ' <span class="b b-grey">inactif</span>' : ' <span class="b b-green">actif</span>') + '</span>' +
+          '<span class="feed-url">' + esc(s.feed) + '</span>' +
+        '</div>' +
+        '<button class="btn btn--ghost btn--sm" data-test-feed="' + s.id + '">🔍 Tester</button>' +
+        (canEditFeeds ? '<button class="btn btn--ghost btn--sm" data-remove-feed="' + s.id + '" title="Supprimer" style="color:var(--red)">🗑</button>' : '') +
+        '</div>'
+      ).join('')) +
+    '</div>' +
+    '</div>';
+
   return '<div class="filters">' +
     '<button class="chipbtn ' + (inboxFiltre === 'actives' ? 'on' : '') + '" data-if="actives">Actives</button>' +
     '<button class="chipbtn ' + (inboxFiltre === 'candidate' ? 'on' : '') + '" data-if="candidate">Candidates</button>' +
     '<button class="chipbtn ' + (inboxFiltre === 'publiee' ? 'on' : '') + '" data-if="publiee">Publiées</button>' +
     '<button class="chipbtn ' + (inboxFiltre === 'ecartees' ? 'on' : '') + '" data-if="ecartees">Écartées / doublons</button>' +
     '<span style="flex:1"></span><button class="btn btn--red btn--sm" id="btnCollectNow2">⚡ Lancer une collecte</button></div>' +
-    '<div class="hint">Mode actuel : <b>' + (DB.settings.testMode ? 'SIMULATION (gisement de démonstration)' : 'RÉEL (' + REAL_FEEDS.length + ' flux interrogés via /api/collect)') + '</b>. Les flux en échec sont listés dans le journal du tableau de bord.</div>' +
+    '<div class="hint">Mode actuel : <b>' + (DB.settings.testMode ? 'SIMULATION (gisement de démonstration)' : 'RÉEL (' + activeSources.length + ' flux actifs)') + '</b>. Les flux en échec sont listés dans le journal du tableau de bord.</div>' +
+    feedsEditor +
     '<div class="grid grid-4" style="margin:14px 0">' +
     '<div class="stat k-gold"><b>' + DB.inbox.filter(i => i.statut === 'candidate').length + '</b><span>Candidates</span></div>' +
     '<div class="stat k-teal"><b>' + DB.inbox.filter(i => i.statut === 'en_revue').length + '</b><span>En revue</span></div>' +
@@ -1009,7 +1071,7 @@ function viewCandidats() {
 function viewDiagnostic() {
   return '<div class="card"><h3 class="h">🧪 Tests automatiques</h3>' +
     '<p class="small muted" style="margin-bottom:12px">Ce module vérifie que chaque sous-système fonctionne, y compris les appels réels aux fonctions serveur <span class="mono">/api/check-link</span> et <span class="mono">/api/collect</span>. <b>Lance-le après chaque déploiement Vercel.</b></p>' +
-    '<button class="btn btn--red" id="btnDiag">▶ Lancer les 12 tests</button>' +
+    '<button class="btn btn--red" id="btnDiag">▶ Lancer les 13 tests</button>' +
     '<div id="diagResults" style="margin-top:14px"></div></div>' +
     '<div class="card small" style="line-height:1.8"><b>Interprétation :</b><br>• <span class="b b-green">✓</span> module opérationnel · <span class="b b-red">✗</span> module défaillant.<br>• Les tests « Connectivité Supabase », « /api/check-link » et « /api/collect » ne réussissent que <b>après déploiement sur Vercel</b>.<br>• Le test « Contrôle d\'un lien (simulation) » force le mode Simulation pour être déterministe.</div>';
 }
@@ -1025,9 +1087,8 @@ function viewSecurite() {
     '<div class="kv" style="margin-top:12px"><span>Entrées d\'audit</span><b>' + DB.audit.length + '</b></div>' +
     '<div class="kv"><span>Empreintes (dédoublonnage)</span><b>' + Object.keys(DB.fingerprints).length + '</b></div>' +
     '<div class="kv"><span>Collectes réalisées</span><b>' + DB.collectes.length + '</b></div>' +
-    '<div class="kv"><span>Sources actives</span><b>' + SOURCES.length + '</b></div>' +
-    '<div class="kv"><span>Flux réels configurés</span><b>' + REAL_FEEDS.length + '</b></div></div></div>' +
-    '<h2 class="section">Chemin vers la production</h2><div class="card small" style="line-height:1.8">Maquette <b>100% fonctionnelle côté client</b>. Déployée sur Vercel avec <span class="mono">api/check-link.js</span>, <span class="mono">api/collect.js</span>, <span class="mono">api/load-data.js</span> et <span class="mono">api/save-data.js</span>, le mode réseau réel est actif et les données persistent dans Supabase. Prochaines étapes : Vercel Cron pour la collecte automatique, authentification réelle (SSO éducatif).</div>';
+    '<div class="kv"><span>Flux RSS configurés</span><b>' + (DB.sources || []).length + '</b></div></div></div>' +
+    '<h2 class="section">Chemin vers la production</h2><div class="card small" style="line-height:1.8">Maquette <b>100% fonctionnelle</b>. Les <b>flux RSS sont éditables dans l\'interface</b> (onglet Collecte). Vercel Cron pourra ultérieurement automatiser la collecte.</div>';
 }
 
 /* ---------- 14. EXPORT / IMPORT ---------- */
@@ -1057,7 +1118,10 @@ function importJSON(file) {
   rd.readAsText(file);
 }
 
-/* ---------- 15. ÉVÉNEMENTS ---------- */
+/* ---------- 15. ÉVÉNEMENTS (délégation défensive) ---------- */
+/* ================================================================
+   MODIFICATION 5 : écouteurs pour les flux (addFeed, removeFeed, testFeed, toggleFeed)
+   ================================================================ */
 function setupListeners() {
   $('#nav').addEventListener('click', function (e) { const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view); });
   $('#rolePick').addEventListener('change', function (e) {
@@ -1083,6 +1147,11 @@ function setupListeners() {
       if ((el = e.target.closest('[data-rappko]'))) { const r = DB.rapports.find(x => x.id === el.dataset.rappko); if (r) { r.statut = 'ignoré'; save(); render(); refreshCounts(); } return; }
       if ((el = e.target.closest('[data-approve]'))) { approveSource(el.dataset.approve, true); return; }
       if ((el = e.target.closest('[data-refuse]'))) { approveSource(el.dataset.refuse, false); return; }
+      /* ✅ Écouteurs flux RSS */
+      if (e.target.closest('#btnAddFeed')) { addFeed(); return; }
+      if (e.target.closest('#btnTestAllFeeds')) { testAllFeeds(); return; }
+      if ((el = e.target.closest('[data-remove-feed]'))) { removeFeed(el.dataset.removeFeed); return; }
+      if ((el = e.target.closest('[data-test-feed]'))) { testFeedUI(el.dataset.testFeed); return; }
       if (e.target.closest('#btnCheckLot')) { runLinkCheck(12); return; }
       if (e.target.closest('#btnCollectNow2')) { runCollect('manuelle'); return; }
       if (e.target.closest('#btnStartSched')) { const fi = $('#freqInput'); DB.settings.freq = Math.max(1, parseInt(fi ? fi.value : DB.settings.freq, 10) || 30); startSched(); render(); return; }
@@ -1122,16 +1191,17 @@ function setupListeners() {
         toast('Mode ' + (e.target.checked ? 'Simulation' : 'Réseau réel') + ' activé.');
       }
       if (e.target.id === 'freqInput') { DB.settings.freq = Math.max(1, parseInt(e.target.value, 10) || 30); save(); if (DB.settings.actif) startSched(); }
+      /* ✅ Écouteur toggle flux */
+      let el;
+      if ((el = e.target.closest('[data-toggle-feed]'))) { toggleFeed(el.dataset.toggleFeed); }
       if (e.target.id === 'fileImport') { importJSON(e.target.files[0]); e.target.value = ''; }
     } catch (err) { toast('Erreur : ' + err.message, 'err'); }
   });
 }
 
-/* ============================================================
-   ✅ CORRECTIF 3 : NORMALISATION DE L'ÉTAT (auto-réparation)
-   Garantit que toutes les clés existent et restaure les liens
-   si la base Supabase a été vidée ou corrompue.
-   ============================================================ */
+/* ================================================================
+   MODIFICATION 6 : normalizeState inclut sources
+   ================================================================ */
 function normalizeState(saved) {
   const base = seed();
   const st = Object.assign({}, base, saved || {});
@@ -1146,12 +1216,13 @@ function normalizeState(saved) {
   if (!Array.isArray(st.log)) st.log = [];
   if (!st.fingerprints || typeof st.fingerprints !== 'object') st.fingerprints = {};
   if (!st.role) st.role = 'admin';
+  if (!Array.isArray(st.sources) || st.sources.length === 0) st.sources = base.sources;
   delete st.test; delete st.timestamp; delete st.message;
   st.version = 3;
   return st;
 }
 
-/* ---------- 16. INIT ASYNCHRONE (Supabase + normalisation) ---------- */
+/* ---------- 16. INIT ASYNCHRONE ---------- */
 (async function () {
   try {
     setupListeners();
@@ -1164,7 +1235,7 @@ function normalizeState(saved) {
       console.log('[INIT] 🆕 Aucun état valide, création d\'une base initiale');
       DB = seed();
     }
-    Storage.write(DB); // persiste l'état (réparé si besoin) dans Supabase
+    Storage.write(DB);
     $('#rolePick').value = DB.role;
     updateStorageTag();
     refreshCounts();
