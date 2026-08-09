@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BacFrançais.io — Console de curation EAF (v4.6)</title>
+<title>BacFrançais.io — Console de curation EAF (v4.7 · YouTube API)</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%23C22F21"/><text x="16" y="23" font-family="Georgia" font-size="19" font-weight="bold" fill="%23FCFAF3" text-anchor="middle">B</text></svg>'>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,600&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -108,7 +108,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.6</small></div></div>
+    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.7</small></div></div>
     <nav class="nav" id="nav">
       <button data-view="dashboard" class="on">📊 Tableau de bord</button>
       <button data-view="feeds">📡 Flux RSS <span class="count" id="cFeeds">0</span></button>
@@ -153,9 +153,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <script>
 "use strict";
 /* ================================================================
-   BACFRANÇAIS.IO — v4.6
-   = v4.5 (stable, onglet Flux RSS) + tableau de bord COMPLET restauré
-   + bouton « Restaurer les flux par défaut » + diagnostic multi-flux
+   BACFRANÇAIS.IO — v4.7
+   = v4.6 (dashboard complet + flux restaurables + découverte Radio France)
+   + ROUTING YouTube via /api/youtube (yt:UC… → 50 vidéos)
    ================================================================ */
 
 const Storage = {
@@ -251,13 +251,18 @@ const CAND_POOL = [
  { id: 'c4', nom: 'Projet Voltaire', feed: 'https://www.projet-voltaire.fr/', type: 'Remédiation langue', score: 8, raison: "Sécurise l'orthographe à l'écrit." }
 ];
 
-/* Flux par défaut (v4.6) : Acast en premier (plus fiables), Radio France ensuite */
 const DEFAULT_FEEDS = [
- { id: 'biloba', nom: 'Bac de Français — Studio Biloba (2026)', feed: 'https://feeds.acast.com/public/shows/bac-de-francais-programme-2026', actif: true },
- { id: 'pinel', nom: "Passe ton bac de français d'abord (É. Pinel)", feed: 'https://feeds.acast.com/public/shows/passe-ton-bac-de-francais-dabord', actif: true },
- { id: 'fc-chemins', nom: 'France Culture — Les Chemins de la philosophie', feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss.xml', actif: true },
- { id: 'fc-oeuvre', nom: 'France Culture — La Compagnie des œuvres', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss.xml', actif: true },
- { id: 'fi-masque', nom: 'France Inter — Le Masque et la Plume', feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss.xml', actif: true }
+ { id: 'fc-oeuvre', nom: 'France Culture — La Compagnie des œuvres', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss', actif: true },
+ { id: 'fc-chemins', nom: 'France Culture — Les Chemins de la philosophie', feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss', actif: true },
+ { id: 'fc-texte', nom: 'France Culture — En français dans le texte', feed: 'https://www.radiofrance.fr/franceculture/podcasts/en-francais-dans-le-texte/rss', actif: true },
+ { id: 'fc-suite', nom: 'France Culture — La Suite dans les idées', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-suite-dans-les-idees/rss', actif: true },
+ { id: 'fc-histoire', nom: 'France Culture — Le Cours de l\'histoire', feed: 'https://www.radiofrance.fr/franceculture/podcasts/le-cours-de-lhistoire/rss', actif: true },
+ { id: 'fi-masque', nom: 'France Inter — Le Masque et la Plume', feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss', actif: true },
+ { id: 'acast-pinel', nom: 'Passe ton bac de français d\'abord (É. Pinel)', feed: 'https://feeds.acast.com/public/shows/passe-ton-bac-de-francais-dabord', actif: true },
+ { id: 'acast-biloba', nom: 'Bac de Français — Studio Biloba (2026)', feed: 'https://feeds.acast.com/public/shows/bac-de-francais-programme-2026', actif: true },
+ { id: 'wp-vioux', nom: 'Commentaire composé (Amélie Vioux)', feed: 'https://commentairecompose.fr/feed/', actif: true },
+ { id: 'wp-jdb', nom: 'Parcours Lettres JDB', feed: 'https://parcourslettresjdb.wordpress.com/feed/', actif: true },
+ { id: 'wp-cafe', nom: 'Le Café pédagogique', feed: 'https://www.cafepedagogique.net/feed/', actif: true }
 ];
 
 function seed() {
@@ -267,7 +272,7 @@ function seed() {
     liens: LIENS_SEED.map(a => ({ id: 'L' + a[0], rang: a[0], titre: a[1], url: a[2], statut: a[3], score: a[4], type: a[5], note: a[8] || null, dernier: a[6] ? { ts: a[7] || nowISO(), res: a[6] } : null, hist: [] })),
     inbox: [], fingerprints: {}, collectes: [], watch: [], candidats: [], rapports: [],
     sources: clone(DEFAULT_FEEDS),
-    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation', details: 'Base v4.6 (dashboard complet + flux restaurables).' }],
+    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation', details: 'Base v4.7 (YouTube API + patch collecte).' }],
     log: []
   };
 }
@@ -294,7 +299,9 @@ function log(msg, cls) { DB.log.unshift({ ts: nowISO(), msg, cls: cls || 'info' 
 let toastT;
 function toast(msg, kind) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', 3200); }
 
-/* ---------- COLLECTE ---------- */
+/* ================================================================
+   COLLECTE — PATCH v4.7 : routing yt:UC… → /api/youtube
+   ================================================================ */
 function normFP(url, titre, src) { const u = (url || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').replace(/[?#].*$/, ''); return u || ((titre || '') + '|' + (src || '')).toLowerCase(); }
 function detectExercice(txt) { const t = (txt || '').toLowerCase(); if (/lecture lin|explication lin/.test(t)) return 'Explication linéaire'; if (/dissertation/.test(t)) return 'Dissertation'; if (/contraction/.test(t)) return 'Contraction (Techno)'; if (/essai/.test(t)) return 'Essai (Techno)'; return 'Analyse'; }
 function matchOeuvres(c) { const hay = ((c.t || c.titre || '') + ' ' + (c.x || c.desc || '')).toLowerCase(); return OEUVRES.filter(o => o.kw.some(k => hay.indexOf(k) >= 0)).map(o => o.id); }
@@ -316,25 +323,44 @@ function runCollectSimulee(trigger) {
   toast('Collecte simulée : ' + run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons écartés.', 'ok');
   save(); refreshCounts(); render();
 }
+
+/* ✅ PATCH : buildApiUrl route vers /api/youtube si préfixe "yt:" */
+function buildApiUrl(src) {
+  if (src.feed.startsWith('yt:')) {
+    return '/api/youtube?channel=' + encodeURIComponent(src.feed.slice(3)) + '&limit=50';
+  }
+  return '/api/collect?feed=' + encodeURIComponent(src.feed) + '&limit=50';
+}
+
 async function runCollect(trigger) {
   if (!can('collect')) { toast('Rôle insuffisant.', 'err'); return; }
   if (DB.settings.testMode) return runCollectSimulee(trigger);
   const run = { id: uid(), ts: nowISO(), trigger, items: 0, nouveaux: 0, doublons: 0, nonIdentifies: 0 };
-  let feedsOk = 0, feedsKo = 0;
+  let feedsOk = 0, feedsKo = 0, ytOk = 0, ytKo = 0, rssOk = 0, rssKo = 0;
   const actives = (DB.sources || []).filter(s => s.actif !== false);
   if (actives.length === 0) { toast('Aucun flux actif. Onglet 📡 Flux RSS.', 'err'); return; }
   for (const src of actives) {
+    const isYt = src.feed.startsWith('yt:');
     try {
-      const resp = await fetch('/api/collect?feed=' + encodeURIComponent(src.feed));
+      const resp = await fetch(buildApiUrl(src));
       const data = await resp.json();
-      if (data.error || !data.items) { feedsKo++; log('Flux en échec : ' + src.nom + ' (' + (data.error || 'vide') + ')', 'warn'); continue; }
-      feedsOk++; run.items += data.items.length;
+      if (data.error || !data.items) {
+        feedsKo++; if (isYt) ytKo++; else rssKo++;
+        log('Flux en échec : ' + src.nom + ' (' + (data.error || 'vide') + ')', 'warn');
+        continue;
+      }
+      feedsOk++; if (isYt) ytOk++; else rssOk++;
+      run.items += data.items.length;
       data.items.forEach(it => ingestCandidate({ titre: it.titre, url: it.url, desc: it.desc, date: it.date }, src.id, run));
-    } catch (e) { feedsKo++; log('Erreur flux : ' + src.nom + ' (' + e.message + ')', 'err'); }
+    } catch (e) {
+      feedsKo++; if (isYt) ytKo++; else rssKo++;
+      log('Erreur flux : ' + src.nom + ' (' + e.message + ')', 'err');
+    }
   }
   DB.collectes.unshift(run);
-  audit('Collecte RÉELLE (' + trigger + ')', run.nouveaux + ' nouveaux, ' + run.doublons + ' doublons, ' + feedsOk + ' OK, ' + feedsKo + ' échecs.');
-  toast('Collecte réelle : ' + run.nouveaux + ' nouveaux (' + feedsOk + ' flux OK).', feedsKo > 0 ? 'err' : 'ok');
+  const detail = run.nouveaux + ' nouveaux · ' + rssOk + ' flux RSS OK (' + rssKo + ' ko) · ' + ytOk + ' chaînes YT OK (' + ytKo + ' ko)';
+  audit('Collecte RÉELLE (' + trigger + ')', detail);
+  toast('Collecte réelle : ' + run.nouveaux + ' nouveaux (' + detail + ').', feedsKo > 0 ? 'err' : 'ok');
   save(); refreshCounts(); render();
 }
 
@@ -362,7 +388,6 @@ async function runLinkCheck(batch) {
   refreshCounts(); render();
 }
 
-/* ---------- VEILLE BO ---------- */
 function watchBO() {
   if (!can('watch')) { toast('Rôle insuffisant.', 'err'); return; }
   const actives = OEUVRES.filter(o => o.statut === 'Au programme');
@@ -380,7 +405,10 @@ function watchBO() {
 
 /* ---------- GESTION DES FLUX ---------- */
 function testFeed(feedUrl) {
-  return fetch('/api/collect?feed=' + encodeURIComponent(feedUrl)).then(r => r.json()).then(d => {
+  const api = feedUrl.startsWith('yt:')
+    ? '/api/youtube?channel=' + encodeURIComponent(feedUrl.slice(3)) + '&limit=50'
+    : '/api/collect?feed=' + encodeURIComponent(feedUrl) + '&limit=50';
+  return fetch(api).then(r => r.json()).then(d => {
     if (d.error) return { ok: false, error: d.error };
     if (!d.items || d.items.length === 0) return { ok: false, error: 'Flux vide' };
     return { ok: true, count: d.items.length, titre: d.titre || '(flux)' };
@@ -390,9 +418,12 @@ function addFeed() {
   if (!can('feeds')) { toast('Rôle insuffisant.', 'err'); return; }
   const nom = $('#newFeedNom').value.trim(), feed = $('#newFeedUrl').value.trim();
   if (!nom || !feed) { toast('Nom et URL requis.', 'err'); return; }
-  if (!/^https?:\/\//i.test(feed)) { toast('URL invalide (http(s)://).', 'err'); return; }
+  /* ✅ Validation élargie : http(s):// ou yt:UC… */
+  if (!/^https?:\/\//i.test(feed) && !/^yt:UC[a-zA-Z0-9_-]{20,26}$/.test(feed)) {
+    toast('URL invalide : doit commencer par http(s):// ou yt:UC… (ID de chaîne YouTube).', 'err'); return;
+  }
   DB.sources.push({ id: 'feed-' + uid(), nom, feed, actif: true });
-  audit('Flux ajouté', '« ' + nom + ' »');
+  audit('Flux ajouté', '« ' + nom + ' » (' + (feed.startsWith('yt:') ? 'YouTube API' : 'RSS') + ')');
   toast('Flux « ' + nom + ' » ajouté. Testez-le.', 'ok');
   $('#newFeedNom').value = ''; $('#newFeedUrl').value = '';
   save(); render();
@@ -410,9 +441,9 @@ function toggleFeed(id) {
 }
 function restoreDefaultFeeds() {
   if (!can('feeds')) { toast('Rôle insuffisant.', 'err'); return; }
-  if (!confirm('Remplacer la liste actuelle des flux par la liste par défaut (v4.6) ?')) return;
+  if (!confirm('Remplacer la liste actuelle des flux par la liste par défaut (v4.7) ?')) return;
   DB.sources = clone(DEFAULT_FEEDS);
-  audit('Flux restaurés', 'Liste par défaut v4.6 réappliquée.');
+  audit('Flux restaurés', 'Liste par défaut v4.7 réappliquée.');
   save(); render();
   toast('Flux par défaut restaurés. Testez-les.', 'ok');
 }
@@ -435,7 +466,6 @@ async function testAllFeeds() {
   audit('Test des flux', ok + ' OK, ' + ko + ' en erreur.');
 }
 
-/* ---------- SOURCES CANDIDATES ---------- */
 function detectSources() {
   if (!can('approve')) { toast('Rôle insuffisant.', 'err'); return; }
   const known = new Set(DB.candidats.map(c => c.id));
@@ -509,7 +539,9 @@ function buildDigest() {
   return md;
 }
 
-/* ---------- DIAGNOSTIC (v4.6 : teste TOUS les flux) ---------- */
+/* ================================================================
+   DIAGNOSTIC (v4.7 : ajoute le test /api/youtube)
+   ================================================================ */
 async function runDiagnostics() {
   const box = $('#diagResults'); if (!box) return;
   const btn = $('#btnDiag'); if (btn) btn.disabled = true;
@@ -521,18 +553,32 @@ async function runDiagnostics() {
   try { const r = await fetch('/api/load-data'); if (!r.ok) throw new Error('HTTP ' + r.status); const d = await r.json(); add('Connectivité Supabase', d && d.state && d.state.version === 3, 'état chargé'); } catch (e) { add('Connectivité Supabase', false, e.message); }
   try { const r = await fetch('/api/check-link?url=' + encodeURIComponent('https://example.com')); const d = await r.json(); add('/api/check-link', d && typeof d.ok === 'boolean', d.ok ? 'répond' : 'erreur'); } catch (e) { add('/api/check-link', false, e.message); }
   try {
-    const act = (DB.sources || []).filter(s => s.actif !== false);
-    if (!act.length) add('/api/collect (flux réel)', false, 'aucun flux actif');
+    const act = (DB.sources || []).filter(s => s.actif !== false && !s.feed.startsWith('yt:'));
+    if (!act.length) add('/api/collect (flux RSS)', false, 'aucun flux RSS actif');
     else {
       let ok = 0, ko = 0, firstErr = '';
       for (const s of act) {
-        const r = await fetch('/api/collect?feed=' + encodeURIComponent(s.feed));
+        const r = await fetch('/api/collect?feed=' + encodeURIComponent(s.feed) + '&limit=50');
         const d = await r.json();
         if (d && !d.error && d.items && d.items.length > 0) ok++; else { ko++; if (!firstErr) firstErr = (d && d.error) || 'vide'; }
       }
-      add('/api/collect (flux réel)', ok > 0, ok + '/' + act.length + ' flux OK' + (ko ? ' · ex: ' + firstErr : ''));
+      add('/api/collect (flux RSS)', ok > 0, ok + '/' + act.length + ' OK' + (ko ? ' · ex: ' + firstErr : ''));
     }
-  } catch (e) { add('/api/collect (flux réel)', false, e.message); }
+  } catch (e) { add('/api/collect (flux RSS)', false, e.message); }
+  /* ✅ NOUVEAU test : /api/youtube */
+  try {
+    const ytSources = (DB.sources || []).filter(s => s.actif !== false && s.feed.startsWith('yt:'));
+    if (!ytSources.length) add('/api/youtube (chaînes YT)', null, 'aucune chaîne configurée (ok si non utilisée)');
+    else {
+      let ok = 0, ko = 0, firstErr = '';
+      for (const s of ytSources) {
+        const r = await fetch('/api/youtube?channel=' + encodeURIComponent(s.feed.slice(3)) + '&limit=10');
+        const d = await r.json();
+        if (d && !d.error && d.items && d.items.length > 0) ok++; else { ko++; if (!firstErr) firstErr = d && d.error ? d.error : 'vide'; }
+      }
+      add('/api/youtube (chaînes YT)', ok > 0, ok + '/' + ytSources.length + ' chaînes OK' + (ko ? ' · ex: ' + firstErr : ''));
+    }
+  } catch (e) { add('/api/youtube (chaînes YT)', false, e.message); }
   const prevMode = DB.settings.testMode; DB.settings.testMode = true;
   if (DB.liens.length > 0) { const l = DB.liens[0]; const r = await checkLink(l); add('Contrôle lien (simulation)', r === 'responds' || r === 'error', 'retour : ' + r); }
   DB.settings.testMode = prevMode; save();
@@ -546,7 +592,7 @@ async function runDiagnostics() {
 let currentView = 'dashboard';
 const TITLES = {
   dashboard: ['📊 Tableau de bord', "Vue d'ensemble complète."],
-  feeds: ['📡 Flux RSS', 'Éditez, testez et gérez les flux RSS de la collecte réelle.'],
+  feeds: ['📡 Flux RSS', 'Éditez, testez et gérez les flux RSS + chaînes YouTube.'],
   liens: ['🔗 Surveillance des liens', 'Contrôle réseau de la whitelist.'],
   oeuvres: ['📚 Œuvres au programme', 'Référentiel clé d\'indexation.'],
   collecte: ['📥 Collecte & Inbox', 'Pipeline : étiquetage, dédoublonnage, score.'],
@@ -555,7 +601,7 @@ const TITLES = {
   digest: ['📰 Digest', 'Synthèse des nouveautés publiées.'],
   rapports: ['🚨 Signalements', 'File de modération.'],
   candidats: ['🆕 Sources candidates', 'Détection et approbation.'],
-  diagnostic: ['🧪 Diagnostic', 'Tests automatiques (multi-flux).'],
+  diagnostic: ['🧪 Diagnostic', 'Tests automatiques (flux + YouTube).'],
   securite: ['⚙️ Sécurité & Données', 'Rôles, permissions, sauvegarde.']
 };
 function setView(v) { currentView = v; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v)); $('#pageTitle').textContent = TITLES[v][0]; $('#pageSub').textContent = TITLES[v][1]; render(); }
@@ -574,7 +620,7 @@ function render() {
   updateSchedUI();
 }
 
-/* ---------- TABLEAU DE BORD COMPLET (restauré) ---------- */
+/* ---------- TABLEAU DE BORD ---------- */
 function viewDashboard() {
   const ok = DB.liens.filter(l => l.dernier && l.dernier.res === 'responds').length;
   const cand = DB.inbox.filter(i => i.statut === 'candidate').length;
@@ -582,7 +628,9 @@ function viewDashboard() {
   const couvertes = OEUVRES.filter(o => DB.inbox.some(i => i.statut === 'publiee' && i.oeuvreIds.indexOf(o.id) >= 0)).length;
   const pct = Math.round(couvertes / OEUVRES.length * 100);
   const obsolete = DB.inbox.filter(i => i.obsolete).length;
-  const activeFeeds = (DB.sources || []).filter(s => s.actif !== false).length;
+  const sources = DB.sources || [];
+  const activeFeeds = sources.filter(s => s.actif !== false).length;
+  const ytFeeds = sources.filter(s => s.feed.startsWith('yt:')).length;
   const lastC = DB.collectes[0];
   return '<div class="grid grid-4">' +
     '<div class="stat k-red"><b>' + DB.liens.length + '</b><span>Liens surveillés</span></div>' +
@@ -592,7 +640,7 @@ function viewDashboard() {
     '<div class="stat k-teal"><b>' + couvertes + '/' + OEUVRES.length + '</b><span>Œuvres couvertes</span></div>' +
     '<div class="stat k-orange"><b>' + obsolete + '</b><span>Obsolètes (programme)</span></div>' +
     '<div class="stat k-ink"><b>' + activeFeeds + '</b><span>Flux RSS actifs</span></div>' +
-    '<div class="stat k-red"><b>' + DB.rapports.filter(r => r.statut === 'ouvert').length + '</b><span>Signalements ouverts</span></div>' +
+    '<div class="stat k-red"><b>' + ytFeeds + '</b><span>Chaînes YouTube</span></div>' +
     '</div>' +
     '<div class="card" style="margin-top:14px"><div class="kv"><span>Couverture du programme (≥1 analyse publiée par œuvre)</span><b>' + pct + '%</b></div><div class="progress" style="margin-top:8px"><i style="width:' + pct + '%"></i></div></div>' +
     '<div class="grid grid-2">' +
@@ -609,11 +657,11 @@ function viewDashboard() {
     '<div class="card"><h3 class="h">🖥 Journal d\'exécution</h3><div class="log">' + (DB.log.map(e => '<div><span class="t">[' + fmtDT(e.ts) + ']</span> <span class="' + e.cls + '">' + esc(e.msg) + '</span></div>').join('') || '<div class="muted">Aucune exécution.</div>') + '</div></div>' +
     '<div class="card"><h3 class="h">🧭 Protocole de test</h3><ol class="small" style="margin-left:18px;line-height:1.9">' +
     '<li><b>Onglet 📡 Flux RSS</b> → « 🔄 Restaurer les flux par défaut » puis « 🧪 Tester tous ».</li>' +
-    '<li>Gardez <b>actifs</b> uniquement les flux qui répondent (interrupteur).</li>' +
-    '<li><b>Décochez « Mode Simulation »</b> (onglet Liens) pour le réseau réel.</li>' +
-    '<li><b>⚡ Lancer une collecte</b> → les vrais épisodes arrivent dans l\'inbox.</li>' +
+    '<li>Pour YouTube (API) : collez <span class="mono">yt:UC…</span> (ID trouvé dans le code source de la chaîne).</li>' +
+    '<li><b>Décochez « Mode Simulation »</b> pour le réseau réel.</li>' +
+    '<li><b>⚡ Lancer une collecte</b> → jusqu\'à 50 vidéos/chaîne + flux RSS.</li>' +
     '<li><b>Workflow</b> : Candidate → En revue → Valider → Publier.</li>' +
-    '<li><b>🧪 Diagnostic</b> : le test flux passe si ≥1 flux OK.</li></ol></div>' +
+    '<li><b>🧪 Diagnostic</b> : vérifie RSS, YouTube, Supabase.</li></ol></div>' +
     '</div>';
 }
 
@@ -621,25 +669,28 @@ function viewDashboard() {
 function viewFeeds() {
   const sources = DB.sources || [];
   const active = sources.filter(s => s.actif !== false);
+  const ytCount = sources.filter(s => s.feed.startsWith('yt:')).length;
   const canEdit = can('feeds');
-  return '<div class="card"><h3 class="h">📡 Flux RSS configurés (' + sources.length + ' · ' + active.length + ' actifs)</h3>' +
-    '<p class="small muted" style="margin-bottom:12px">Ajoutez, testez et gérez les flux de la <b>collecte réelle</b>. Un flux qui renvoie « 404 » est une adresse morte chez l\'éditeur : désactivez-le ou remplacez-le. Sauvegardé dans Supabase.</p>' +
-    (canEdit ? '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn--teal btn--sm" id="btnTestAllFeeds">🧪 Tester tous les flux</button><button class="btn btn--ghost btn--sm" id="btnRestoreFeeds">🔄 Restaurer les flux par défaut</button></div>' : '') +
-    (canEdit ? '<div class="feed-add"><input type="text" id="newFeedNom" placeholder="Nom du flux"><input type="text" id="newFeedUrl" placeholder="URL du flux (https://...rss.xml)"><button class="btn btn--green btn--sm" id="btnAddFeed">➕ Ajouter</button></div>' : '') +
+  return '<div class="card"><h3 class="h">📡 Flux configurés (' + sources.length + ' · ' + active.length + ' actifs · ' + ytCount + ' YouTube)</h3>' +
+    '<p class="small muted" style="margin-bottom:12px">Gérez les flux RSS et chaînes YouTube de la <b>collecte réelle</b>. Les flux désactivés sont ignorés. Sauvegardé dans Supabase.</p>' +
+    (canEdit ? '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn--teal btn--sm" id="btnTestAllFeeds">🧪 Tester tous</button><button class="btn btn--ghost btn--sm" id="btnRestoreFeeds">🔄 Restaurer les défauts</button></div>' : '') +
+    (canEdit ? '<div class="feed-add"><input type="text" id="newFeedNom" placeholder="Nom du flux"><input type="text" id="newFeedUrl" placeholder="https://… ou yt:UC…"><button class="btn btn--green btn--sm" id="btnAddFeed">➕ Ajouter</button></div>' : '') +
     '<div style="display:flex;flex-direction:column;gap:8px">' +
     (sources.length === 0 ? '<div class="empty">Aucun flux. Ajoutez-en un ou restaurez les défauts.</div>' :
-      sources.map(s => '<div class="feed-row ' + (s.actif === false ? 'inactive' : '') + '">' +
-        (canEdit ? '<label class="switch" style="flex:none"><input type="checkbox" ' + (s.actif !== false ? 'checked' : '') + ' data-toggle-feed="' + s.id + '"><i></i></label>' : '<span style="width:38px;flex:none"></span>') +
-        '<div style="flex:1;min-width:0"><span class="feed-name">' + esc(s.nom) + (s.actif === false ? ' <span class="b b-grey">inactif</span>' : ' <span class="b b-green">actif</span>') + '</span><span class="feed-url">' + esc(s.feed) + '</span></div>' +
-        '<button class="btn btn--ghost btn--sm" data-test-feed="' + s.id + '">🔍 Tester</button>' +
-        (canEdit ? '<button class="btn btn--ghost btn--sm" data-remove-feed="' + s.id + '" style="color:var(--red)">🗑</button>' : '') +
-        '</div>').join('')) +
+      sources.map(s => {
+        const isYt = s.feed.startsWith('yt:');
+        return '<div class="feed-row ' + (s.actif === false ? 'inactive' : '') + '">' +
+          (canEdit ? '<label class="switch" style="flex:none"><input type="checkbox" ' + (s.actif !== false ? 'checked' : '') + ' data-toggle-feed="' + s.id + '"><i></i></label>' : '<span style="width:38px;flex:none"></span>') +
+          '<div style="flex:1;min-width:0"><span class="feed-name">' + esc(s.nom) + (isYt ? ' <span class="b b-red">YT API</span>' : '') + (s.actif === false ? ' <span class="b b-grey">inactif</span>' : ' <span class="b b-green">actif</span>') + '</span><span class="feed-url">' + esc(s.feed) + '</span></div>' +
+          '<button class="btn btn--ghost btn--sm" data-test-feed="' + s.id + '">🔍 Tester</button>' +
+          (canEdit ? '<button class="btn btn--ghost btn--sm" data-remove-feed="' + s.id + '" style="color:var(--red)">🗑</button>' : '') +
+          '</div>';
+      }).join('')) +
     '</div></div>' +
-    '<div class="card"><h3 class="h">ℹ️ Trouver un flux RSS qui marche</h3><ul class="small" style="margin-left:18px;line-height:1.8">' +
-    '<li><b>Acast</b> : https://feeds.acast.com/public/shows/NOM (souvent fiable)</li>' +
-    '<li><b>YouTube</b> : https://www.youtube.com/feeds/videos.xml?channel_id=UC… (ID dans « À propos »)</li>' +
-    '<li><b>France Culture</b> : …/podcasts/NOM/rss.xml (parfois 404 → tester)</li>' +
-    '<li>Testez toujours avant une collecte réelle.</li></ul></div>';
+    '<div class="card"><h3 class="h">ℹ️ Formats acceptés</h3><ul class="small" style="margin-left:18px;line-height:1.8">' +
+    '<li><b>RSS standard</b> : <span class="mono">https://…/rss</span>, <span class="mono">https://feeds.acast.com/…</span>, <span class="mono">…/feed/</span></li>' +
+    '<li><b>YouTube (API)</b> : <span class="mono">yt:UCxxxxxxxxxxxxxxxxxxx</span> — l\'ID de 24 caractères commence par <span class="mono">UC</span>. Pour le trouver : ouvrir la chaîne → clic droit « Afficher le code source » → <span class="mono">Ctrl+F</span> → <span class="mono">channelId</span>.</li>' +
+    '<li>Testez toujours un flux/chaîne avant une collecte réelle.</li></ul></div>';
 }
 
 let lienFiltre = 'tous';
@@ -681,13 +732,16 @@ function viewCollecte() {
   if (inboxFiltre === 'candidate') items = items.filter(i => i.statut === 'candidate');
   if (inboxFiltre === 'publiee') items = items.filter(i => i.statut === 'publiee');
   if (inboxFiltre === 'ecartees') items = items.filter(i => ['rejetee', 'dupliquee'].indexOf(i.statut) >= 0);
+  const sources = DB.sources || [];
+  const ytActive = sources.filter(s => s.actif !== false && s.feed.startsWith('yt:')).length;
+  const rssActive = sources.filter(s => s.actif !== false && !s.feed.startsWith('yt:')).length;
   return '<div class="filters">' +
     '<button class="chipbtn ' + (inboxFiltre === 'actives' ? 'on' : '') + '" data-if="actives">Actives</button>' +
     '<button class="chipbtn ' + (inboxFiltre === 'candidate' ? 'on' : '') + '" data-if="candidate">Candidates</button>' +
     '<button class="chipbtn ' + (inboxFiltre === 'publiee' ? 'on' : '') + '" data-if="publiee">Publiées</button>' +
     '<button class="chipbtn ' + (inboxFiltre === 'ecartees' ? 'on' : '') + '" data-if="ecartees">Écartées</button>' +
     '<span style="flex:1"></span><button class="btn btn--red btn--sm" id="btnCollectNow2">⚡ Lancer une collecte</button></div>' +
-    '<div class="hint">Mode : <b>' + (DB.settings.testMode ? 'SIMULATION' : 'RÉEL (' + (DB.sources || []).filter(s => s.actif !== false).length + ' flux actifs — onglet 📡)') + '</b></div>' +
+    '<div class="hint">Mode : <b>' + (DB.settings.testMode ? 'SIMULATION' : 'RÉEL (' + rssActive + ' flux RSS + ' + ytActive + ' chaînes YT API → 50 vidéos/chaîne)') + '</b></div>' +
     (items.length === 0 ? '<div class="empty">Aucun élément.</div>' : items.map(itemCard).join('')) +
     '<h2 class="section">Historique des collectes</h2><div class="card" style="padding:0;overflow-x:auto"><table class="tbl"><thead><tr><th>Date</th><th>Déclencheur</th><th>Nouveaux</th><th>Doublons</th></tr></thead><tbody>' +
     (DB.collectes.map(c => '<tr><td class="mono">' + fmtDT(c.ts) + '</td><td>' + esc(c.trigger) + '</td><td><b>' + c.nouveaux + '</b></td><td>' + c.doublons + '</td></tr>').join('') || '<tr><td colspan="4" class="muted">Aucune.</td></tr>') + '</tbody></table></div>';
@@ -730,11 +784,14 @@ function viewDiagnostic() {
 }
 function viewSecurite() {
   const disI = can('import') ? '' : ' disabled', disR = can('reset') ? '' : ' disabled';
+  const sources = DB.sources || [];
   return '<div class="card"><h3 class="h">💾 Données</h3><div style="display:flex;gap:10px"><button class="btn btn--green" id="btnExport">⤓ Exporter</button><button class="btn btn--ghost" id="btnImport"' + disI + '>⤒ Importer</button><button class="btn btn--red" id="btnReset"' + disR + '>⟲ Réinitialiser</button><input type="file" id="fileImport" accept=".json" hidden></div>' +
-    '<div class="kv" style="margin-top:12px"><span>Flux RSS</span><b>' + (DB.sources || []).length + '</b></div><div class="kv"><span>Audit</span><b>' + DB.audit.length + '</b></div></div>';
+    '<div class="kv" style="margin-top:12px"><span>Flux RSS</span><b>' + sources.filter(s => !s.feed.startsWith('yt:')).length + '</b></div>' +
+    '<div class="kv"><span>Chaînes YouTube (API)</span><b>' + sources.filter(s => s.feed.startsWith('yt:')).length + '</b></div>' +
+    '<div class="kv"><span>Audit</span><b>' + DB.audit.length + '</b></div></div>';
 }
 
-function exportJSON() { const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'curation-eaf-v46.json'; a.click(); URL.revokeObjectURL(a.href); toast('Export téléchargé.', 'ok'); }
+function exportJSON() { const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'curation-eaf-v47.json'; a.click(); URL.revokeObjectURL(a.href); toast('Export téléchargé.', 'ok'); }
 function importJSON(file) { if (!file) return; const rd = new FileReader(); rd.onload = function () { try { const o = JSON.parse(rd.result); if (!o || o.version !== 3 || !o.liens) throw 0; DB = normalizeState(o); save(); toast('Import réussi.', 'ok'); refreshCounts(); render(); } catch (e) { toast('Fichier invalide.', 'err'); } }; rd.readAsText(file); }
 
 function setupListeners() {
@@ -809,14 +866,14 @@ function normalizeState(saved) {
 (async function () {
   try {
     setupListeners();
-    console.log('[INIT] 🚀 v4.6 démarrage...');
+    console.log('[INIT] 🚀 v4.7 démarrage...');
     const saved = await Storage.init();
     DB = (saved && saved.version === 3) ? normalizeState(saved) : seed();
     Storage.write(DB);
     $('#rolePick').value = DB.role;
     updateStorageTag(); refreshCounts(); setView('dashboard');
     if (DB.settings.actif) { DB.settings.actif = false; save(); }
-    console.log('[INIT] ✅ Application prête (v4.6)');
+    console.log('[INIT] ✅ Application prête (v4.7)');
   } catch (err) {
     console.error('[INIT] ❌', err);
     document.getElementById('view').innerHTML = '<div class="fatal"><h2>⚠️ Erreur d\'initialisation</h2><p>' + esc(err.message) + '</p><button class="btn btn--red" onclick="location.reload()">⟲ Réessayer</button></div>';
