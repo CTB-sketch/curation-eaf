@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BacFrançais.io — Console de curation EAF (v4.5 · onglet Flux RSS)</title>
+<title>BacFrançais.io — Console de curation EAF (v4.6)</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%23C22F21"/><text x="16" y="23" font-family="Georgia" font-size="19" font-weight="bold" fill="%23FCFAF3" text-anchor="middle">B</text></svg>'>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,600&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -108,7 +108,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.5</small></div></div>
+    <div class="brand"><span class="brand-mark">B</span><div><b>BacFrançais<span class="io">.io</span></b><small>Console de curation EAF · v4.6</small></div></div>
     <nav class="nav" id="nav">
       <button data-view="dashboard" class="on">📊 Tableau de bord</button>
       <button data-view="feeds">📡 Flux RSS <span class="count" id="cFeeds">0</span></button>
@@ -153,28 +153,21 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 <script>
 "use strict";
 /* ================================================================
-   BACFRANÇAIS.IO — CONSOLE DE CURATION EAF · v4.5
-   Base v4.2 (stable) + ONGLET DÉDIÉ « 📡 Flux RSS »
+   BACFRANÇAIS.IO — v4.6
+   = v4.5 (stable, onglet Flux RSS) + tableau de bord COMPLET restauré
+   + bouton « Restaurer les flux par défaut » + diagnostic multi-flux
    ================================================================ */
 
-/* ---------- 1. STOCKAGE SUPABASE ---------- */
 const Storage = {
   persistent: true, backend: 'supabase', _memData: null, _saveTimeout: null, _lastSavedJson: null,
   async init() {
-    console.log('[Storage.init] 🔄 Chargement depuis Supabase...');
     try {
       const resp = await fetch('/api/load-data');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const payload = await resp.json();
-      if (payload && payload.state && payload.state.version === 3) {
-        this._memData = payload.state; this._lastSavedJson = JSON.stringify(payload.state);
-        console.log('[Storage.init] ✅ État chargé depuis Supabase'); return this._memData;
-      }
+      if (payload && payload.state && payload.state.version === 3) { this._memData = payload.state; this._lastSavedJson = JSON.stringify(payload.state); return this._memData; }
       throw new Error('État Supabase invalide');
-    } catch (e) {
-      console.warn('[Storage.init] ❌ Supabase indisponible, fallback mémoire :', e.message);
-      this.persistent = false; this.backend = 'memory'; return null;
-    }
+    } catch (e) { this.persistent = false; this.backend = 'memory'; return null; }
   },
   read() { return this._memData; },
   write(v) {
@@ -185,9 +178,8 @@ const Storage = {
         const json = JSON.stringify(v);
         if (json === this._lastSavedJson) return;
         const resp = await fetch('/api/save-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json });
-        if (resp.ok) { this._lastSavedJson = json; console.log('[Storage.write] ✅ Sauvegardé'); }
-        else console.error('[Storage.write] ❌ HTTP ' + resp.status);
-      } catch (e) { console.error('[Storage.write] ❌', e); }
+        if (resp.ok) this._lastSavedJson = json;
+      } catch (e) { console.error('[Storage.write]', e); }
     }, 1000);
   },
   clear() { this._memData = null; this._lastSavedJson = null; }
@@ -195,11 +187,11 @@ const Storage = {
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
 const nowISO = () => new Date().toISOString();
 const fmtDT = iso => { const d = new Date(iso); return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-/* ---------- 2. DONNÉES ---------- */
 const OBJETS = { poesie: { l: 'Poésie', c: 'b-poesie' }, idees: { l: "Littérature d'idées", c: 'b-idees' }, roman: { l: 'Roman & récit', c: 'b-roman' }, theatre: { l: 'Théâtre', c: 'b-theatre' } };
 
 const OEUVRES = [
@@ -259,22 +251,23 @@ const CAND_POOL = [
  { id: 'c4', nom: 'Projet Voltaire', feed: 'https://www.projet-voltaire.fr/', type: 'Remédiation langue', score: 8, raison: "Sécurise l'orthographe à l'écrit." }
 ];
 
-/* ---------- 3. ÉTAT (seed avec sources) ---------- */
+/* Flux par défaut (v4.6) : Acast en premier (plus fiables), Radio France ensuite */
+const DEFAULT_FEEDS = [
+ { id: 'biloba', nom: 'Bac de Français — Studio Biloba (2026)', feed: 'https://feeds.acast.com/public/shows/bac-de-francais-programme-2026', actif: true },
+ { id: 'pinel', nom: "Passe ton bac de français d'abord (É. Pinel)", feed: 'https://feeds.acast.com/public/shows/passe-ton-bac-de-francais-dabord', actif: true },
+ { id: 'fc-chemins', nom: 'France Culture — Les Chemins de la philosophie', feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss.xml', actif: true },
+ { id: 'fc-oeuvre', nom: 'France Culture — La Compagnie des œuvres', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss.xml', actif: true },
+ { id: 'fi-masque', nom: 'France Inter — Le Masque et la Plume', feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss.xml', actif: true }
+];
+
 function seed() {
   return {
     version: 3, cree: nowISO(), role: 'admin',
     settings: { freq: 30, actif: false, nextRun: null, autoCollect: true, autoLinks: true, testMode: true, currentProgram: '2025-2026', nextProgram: '2026-2027', lastDigest: null },
     liens: LIENS_SEED.map(a => ({ id: 'L' + a[0], rang: a[0], titre: a[1], url: a[2], statut: a[3], score: a[4], type: a[5], note: a[8] || null, dernier: a[6] ? { ts: a[7] || nowISO(), res: a[6] } : null, hist: [] })),
     inbox: [], fingerprints: {}, collectes: [], watch: [], candidats: [], rapports: [],
-    sources: [
-      { id: 'fc-chemins', nom: 'France Culture — Les Chemins de la philosophie', feed: 'https://www.radiofrance.fr/franceculture/podcasts/les-chemins-de-la-philosophie/rss.xml', actif: true },
-      { id: 'fc-suite', nom: 'France Culture — La Suite dans les idées', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-suite-dans-les-idees/rss.xml', actif: true },
-      { id: 'fc-oeuvre', nom: 'France Culture — La Compagnie des œuvres', feed: 'https://www.radiofrance.fr/franceculture/podcasts/la-compagnie-des-oeuvres/rss.xml', actif: true },
-      { id: 'fi-masque', nom: 'France Inter — Le Masque et la Plume', feed: 'https://www.radiofrance.fr/franceinter/podcasts/le-masque-et-la-plume/rss.xml', actif: true },
-      { id: 'biloba', nom: 'Bac de Français — Studio Biloba (2026)', feed: 'https://feeds.acast.com/public/shows/bac-de-francais-programme-2026', actif: true },
-      { id: 'pinel', nom: "Passe ton bac de français d'abord (É. Pinel)", feed: 'https://feeds.acast.com/public/shows/passe-ton-bac-de-francais-dabord', actif: true }
-    ],
-    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation', details: 'Base v4.5 créée (onglet Flux RSS dédié).' }],
+    sources: clone(DEFAULT_FEEDS),
+    audit: [{ ts: nowISO(), user: 'système', action: 'Initialisation', details: 'Base v4.6 (dashboard complet + flux restaurables).' }],
     log: []
   };
 }
@@ -288,7 +281,6 @@ function updateStorageTag() {
   else { el.textContent = '❌ Erreur stockage'; el.className = 'storage-tag err'; }
 }
 
-/* ---------- 4. RÔLES & AUDIT ---------- */
 const PERMS = {
  admin: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export','import','reset','feeds'],
  editeur: ['collect','linkcheck','review','validate','publish','reject','restore','approve','watch','digest','rapport','export','feeds'],
@@ -302,7 +294,7 @@ function log(msg, cls) { DB.log.unshift({ ts: nowISO(), msg, cls: cls || 'info' 
 let toastT;
 function toast(msg, kind) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', 3200); }
 
-/* ---------- 5. COLLECTE ---------- */
+/* ---------- COLLECTE ---------- */
 function normFP(url, titre, src) { const u = (url || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').replace(/[?#].*$/, ''); return u || ((titre || '') + '|' + (src || '')).toLowerCase(); }
 function detectExercice(txt) { const t = (txt || '').toLowerCase(); if (/lecture lin|explication lin/.test(t)) return 'Explication linéaire'; if (/dissertation/.test(t)) return 'Dissertation'; if (/contraction/.test(t)) return 'Contraction (Techno)'; if (/essai/.test(t)) return 'Essai (Techno)'; return 'Analyse'; }
 function matchOeuvres(c) { const hay = ((c.t || c.titre || '') + ' ' + (c.x || c.desc || '')).toLowerCase(); return OEUVRES.filter(o => o.kw.some(k => hay.indexOf(k) >= 0)).map(o => o.id); }
@@ -330,7 +322,7 @@ async function runCollect(trigger) {
   const run = { id: uid(), ts: nowISO(), trigger, items: 0, nouveaux: 0, doublons: 0, nonIdentifies: 0 };
   let feedsOk = 0, feedsKo = 0;
   const actives = (DB.sources || []).filter(s => s.actif !== false);
-  if (actives.length === 0) { toast('Aucun flux actif. Configurez-les dans l\'onglet 📡 Flux RSS.', 'err'); return; }
+  if (actives.length === 0) { toast('Aucun flux actif. Onglet 📡 Flux RSS.', 'err'); return; }
   for (const src of actives) {
     try {
       const resp = await fetch('/api/collect?feed=' + encodeURIComponent(src.feed));
@@ -346,7 +338,7 @@ async function runCollect(trigger) {
   save(); refreshCounts(); render();
 }
 
-/* ---------- 6. LIENS ---------- */
+/* ---------- LIENS ---------- */
 let linkBusy = false;
 async function checkLink(l) {
   if (!l || !l.url) return 'error';
@@ -370,7 +362,7 @@ async function runLinkCheck(batch) {
   refreshCounts(); render();
 }
 
-/* ---------- 7. VEILLE BO ---------- */
+/* ---------- VEILLE BO ---------- */
 function watchBO() {
   if (!can('watch')) { toast('Rôle insuffisant.', 'err'); return; }
   const actives = OEUVRES.filter(o => o.statut === 'Au programme');
@@ -386,7 +378,7 @@ function watchBO() {
   save(); refreshCounts(); render();
 }
 
-/* ---------- 7b. GESTION DES FLUX RSS ---------- */
+/* ---------- GESTION DES FLUX ---------- */
 function testFeed(feedUrl) {
   return fetch('/api/collect?feed=' + encodeURIComponent(feedUrl)).then(r => r.json()).then(d => {
     if (d.error) return { ok: false, error: d.error };
@@ -416,6 +408,14 @@ function toggleFeed(id) {
   const s = DB.sources.find(x => x.id === id);
   if (s) { s.actif = !s.actif; save(); render(); }
 }
+function restoreDefaultFeeds() {
+  if (!can('feeds')) { toast('Rôle insuffisant.', 'err'); return; }
+  if (!confirm('Remplacer la liste actuelle des flux par la liste par défaut (v4.6) ?')) return;
+  DB.sources = clone(DEFAULT_FEEDS);
+  audit('Flux restaurés', 'Liste par défaut v4.6 réappliquée.');
+  save(); render();
+  toast('Flux par défaut restaurés. Testez-les.', 'ok');
+}
 async function testFeedUI(id) {
   const s = DB.sources.find(x => x.id === id); if (!s) return;
   const btn = document.querySelector('[data-test-feed="' + id + '"]');
@@ -426,16 +426,16 @@ async function testFeedUI(id) {
 }
 async function testAllFeeds() {
   if (!can('feeds')) { toast('Rôle insuffisant.', 'err'); return; }
-  const list = DB.sources || [];
-  if (!list.length) { toast('Aucun flux.', 'err'); return; }
+  const list = (DB.sources || []).filter(s => s.actif !== false);
+  if (!list.length) { toast('Aucun flux actif.', 'err'); return; }
   toast('Test de ' + list.length + ' flux…');
   let ok = 0, ko = 0;
-  for (const s of list) { const r = await testFeed(s.feed); r.ok ? ok++ : ko++; }
+  for (const s of list) { const r = await testFeed(s.feed); if (r.ok) { ok++; log('✓ ' + s.nom + ' : ' + r.count + ' éléments', 'ok'); } else { ko++; log('✗ ' + s.nom + ' : ' + r.error, 'err'); } }
   toast('Test terminé : ' + ok + ' OK, ' + ko + ' en erreur.', ko > 0 ? 'err' : 'ok');
   audit('Test des flux', ok + ' OK, ' + ko + ' en erreur.');
 }
 
-/* ---------- 8. SOURCES CANDIDATES ---------- */
+/* ---------- SOURCES CANDIDATES ---------- */
 function detectSources() {
   if (!can('approve')) { toast('Rôle insuffisant.', 'err'); return; }
   const known = new Set(DB.candidats.map(c => c.id));
@@ -453,7 +453,7 @@ function approveSource(id, ok) {
   save(); refreshCounts(); render();
 }
 
-/* ---------- 9. WORKFLOW ---------- */
+/* ---------- WORKFLOW ---------- */
 const TRANSITIONS = {
   candidate: [ { to: 'en_revue', label: '→ En revue', perm: 'review', cls: 'btn--ink' }, { to: 'rejetee', label: '✕ Rejeter', perm: 'reject', cls: 'btn--ghost' }, { to: 'dupliquee', label: '⧉ Doublon', perm: 'review', cls: 'btn--ghost' } ],
   en_revue: [ { to: 'validee', label: '✓ Valider', perm: 'validate', cls: 'btn--green' }, { to: 'rejetee', label: '✕ Rejeter', perm: 'reject', cls: 'btn--ghost' } ],
@@ -474,7 +474,7 @@ function moveItem(id, to) {
   save(); toast('« ' + it.titre + ' » → ' + STATUT_LABEL[to] + '.', 'ok'); render();
 }
 
-/* ---------- 10. PLANIFICATEUR ---------- */
+/* ---------- PLANIFICATEUR ---------- */
 let schedTimer = null, countTimer = null;
 async function scheduledTick() {
   log('⏰ Exécution planifiée.', 'info');
@@ -499,15 +499,17 @@ function updateSchedUI() {
   } else { mini.innerHTML = 'Planificateur : <b>arrêté</b>'; const cd = $('#countdown'); if (cd) cd.textContent = 'Planificateur arrêté.'; }
 }
 
-/* ---------- 11. DIGEST ---------- */
+/* ---------- DIGEST ---------- */
 function buildDigest() {
   const pubs = DB.inbox.filter(i => i.statut === 'publiee');
-  let md = '# Digest EAF — ' + new Date().toLocaleDateString('fr-FR') + '\n\n' + pubs.length + ' analyses publiées.\n\n';
+  let md = '# Digest EAF — ' + new Date().toLocaleDateString('fr-FR') + '\n\nProgramme : ' + DB.settings.currentProgram + ' · ' + pubs.length + ' analyses publiées.\n\n';
   OEUVRES.forEach(o => { const items = pubs.filter(i => i.oeuvreIds.indexOf(o.id) >= 0); if (items.length) { md += '## ' + o.titre + ' (' + o.auteur + ')\n'; items.forEach(i => { md += '- [' + i.titre + '](' + i.url + ')\n'; }); md += '\n'; } });
+  const sans = OEUVRES.filter(o => !pubs.some(i => i.oeuvreIds.indexOf(o.id) >= 0));
+  if (sans.length) md += '## Œuvres sans analyse publiée\n' + sans.map(o => '- ' + o.titre + ' (' + o.auteur + ')\n').join('') + '\n';
   return md;
 }
 
-/* ---------- 12. DIAGNOSTIC ---------- */
+/* ---------- DIAGNOSTIC (v4.6 : teste TOUS les flux) ---------- */
 async function runDiagnostics() {
   const box = $('#diagResults'); if (!box) return;
   const btn = $('#btnDiag'); if (btn) btn.disabled = true;
@@ -518,27 +520,42 @@ async function runDiagnostics() {
   add('Liste des flux RSS', Array.isArray(DB.sources) && DB.sources.length > 0, (DB.sources || []).length + ' flux');
   try { const r = await fetch('/api/load-data'); if (!r.ok) throw new Error('HTTP ' + r.status); const d = await r.json(); add('Connectivité Supabase', d && d.state && d.state.version === 3, 'état chargé'); } catch (e) { add('Connectivité Supabase', false, e.message); }
   try { const r = await fetch('/api/check-link?url=' + encodeURIComponent('https://example.com')); const d = await r.json(); add('/api/check-link', d && typeof d.ok === 'boolean', d.ok ? 'répond' : 'erreur'); } catch (e) { add('/api/check-link', false, e.message); }
-  try { const f = (DB.sources || []).find(s => s.actif !== false); if (f) { const r = await fetch('/api/collect?feed=' + encodeURIComponent(f.feed)); const d = await r.json(); add('/api/collect (flux réel)', d && !d.error && d.items && d.items.length > 0, d.error ? d.error : d.items.length + ' éléments'); } else add('/api/collect (flux réel)', false, 'aucun flux actif'); } catch (e) { add('/api/collect (flux réel)', false, e.message); }
+  try {
+    const act = (DB.sources || []).filter(s => s.actif !== false);
+    if (!act.length) add('/api/collect (flux réel)', false, 'aucun flux actif');
+    else {
+      let ok = 0, ko = 0, firstErr = '';
+      for (const s of act) {
+        const r = await fetch('/api/collect?feed=' + encodeURIComponent(s.feed));
+        const d = await r.json();
+        if (d && !d.error && d.items && d.items.length > 0) ok++; else { ko++; if (!firstErr) firstErr = (d && d.error) || 'vide'; }
+      }
+      add('/api/collect (flux réel)', ok > 0, ok + '/' + act.length + ' flux OK' + (ko ? ' · ex: ' + firstErr : ''));
+    }
+  } catch (e) { add('/api/collect (flux réel)', false, e.message); }
+  const prevMode = DB.settings.testMode; DB.settings.testMode = true;
+  if (DB.liens.length > 0) { const l = DB.liens[0]; const r = await checkLink(l); add('Contrôle lien (simulation)', r === 'responds' || r === 'error', 'retour : ' + r); }
+  DB.settings.testMode = prevMode; save();
   const md = buildDigest(); add('Digest', md.indexOf('Digest EAF') >= 0, 'Markdown produit');
   const okN = res.filter(x => x.ok).length;
   toast('Diagnostic : ' + okN + '/' + res.length + ' tests réussis.', okN === res.length ? 'ok' : 'err');
   if (btn) btn.disabled = false;
 }
 
-/* ---------- 13. RENDU ---------- */
+/* ---------- RENDU ---------- */
 let currentView = 'dashboard';
 const TITLES = {
-  dashboard: ['📊 Tableau de bord', "Vue d'ensemble."],
+  dashboard: ['📊 Tableau de bord', "Vue d'ensemble complète."],
   feeds: ['📡 Flux RSS', 'Éditez, testez et gérez les flux RSS de la collecte réelle.'],
   liens: ['🔗 Surveillance des liens', 'Contrôle réseau de la whitelist.'],
-  oeuvres: ['📚 uvres au programme', 'Référentiel clé d\'indexation.'],
+  oeuvres: ['📚 Œuvres au programme', 'Référentiel clé d\'indexation.'],
   collecte: ['📥 Collecte & Inbox', 'Pipeline : étiquetage, dédoublonnage, score.'],
   couverture: ['🗂️ Couverture par œuvre', 'Matrice œuvre × analyses publiées.'],
   workflow: ['✍️ Workflow & Audit', 'Machine à états + audit append-only.'],
   digest: ['📰 Digest', 'Synthèse des nouveautés publiées.'],
   rapports: ['🚨 Signalements', 'File de modération.'],
   candidats: ['🆕 Sources candidates', 'Détection et approbation.'],
-  diagnostic: ['🧪 Diagnostic', 'Tests automatiques.'],
+  diagnostic: ['🧪 Diagnostic', 'Tests automatiques (multi-flux).'],
   securite: ['⚙️ Sécurité & Données', 'Rôles, permissions, sauvegarde.']
 };
 function setView(v) { currentView = v; document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v)); $('#pageTitle').textContent = TITLES[v][0]; $('#pageSub').textContent = TITLES[v][1]; render(); }
@@ -557,43 +574,60 @@ function render() {
   updateSchedUI();
 }
 
+/* ---------- TABLEAU DE BORD COMPLET (restauré) ---------- */
 function viewDashboard() {
   const ok = DB.liens.filter(l => l.dernier && l.dernier.res === 'responds').length;
   const cand = DB.inbox.filter(i => i.statut === 'candidate').length;
   const pub = DB.inbox.filter(i => i.statut === 'publiee').length;
+  const couvertes = OEUVRES.filter(o => DB.inbox.some(i => i.statut === 'publiee' && i.oeuvreIds.indexOf(o.id) >= 0)).length;
+  const pct = Math.round(couvertes / OEUVRES.length * 100);
+  const obsolete = DB.inbox.filter(i => i.obsolete).length;
   const activeFeeds = (DB.sources || []).filter(s => s.actif !== false).length;
   const lastC = DB.collectes[0];
   return '<div class="grid grid-4">' +
     '<div class="stat k-red"><b>' + DB.liens.length + '</b><span>Liens surveillés</span></div>' +
     '<div class="stat k-green"><b>' + ok + '</b><span>Répondent</span></div>' +
     '<div class="stat k-gold"><b>' + cand + '</b><span>Candidates</span></div>' +
-    '<div class="stat k-ink"><b>' + pub + '</b><span>Publiées</span></div>' +
-    '<div class="stat k-teal"><b>' + activeFeeds + '</b><span>Flux RSS actifs</span></div>' +
-    '<div class="stat k-red"><b>' + DB.rapports.filter(r => r.statut === 'ouvert').length + '</b><span>Signalements</span></div>' +
+    '<div class="stat k-ink"><b>' + pub + '</b><span>Analyses publiées</span></div>' +
+    '<div class="stat k-teal"><b>' + couvertes + '/' + OEUVRES.length + '</b><span>Œuvres couvertes</span></div>' +
+    '<div class="stat k-orange"><b>' + obsolete + '</b><span>Obsolètes (programme)</span></div>' +
+    '<div class="stat k-ink"><b>' + activeFeeds + '</b><span>Flux RSS actifs</span></div>' +
+    '<div class="stat k-red"><b>' + DB.rapports.filter(r => r.statut === 'ouvert').length + '</b><span>Signalements ouverts</span></div>' +
     '</div>' +
-    '<div class="grid grid-2" style="margin-top:14px">' +
-    '<div class="card"><h3 class="h">⏰ Planificateur</h3><p class="small muted" id="countdown"></p>' +
-    '<div class="field" style="margin-top:10px"><label>Intervalle (min)</label><input type="number" id="freqInput" min="1" max="1440" value="' + DB.settings.freq + '" style="max-width:120px"></div>' +
-    '<div style="display:flex;gap:10px"><button class="btn btn--red btn--sm" id="btnStartSched">▶ Activer</button><button class="btn btn--ghost btn--sm" id="btnStopSched">⏸ Arrêter</button></div>' +
-    '<div style="display:flex;gap:14px;margin-top:12px"><label class="switch"><input type="checkbox" id="swCollect" ' + (DB.settings.autoCollect ? 'checked' : '') + '><i></i><span class="small">Collecte auto</span></label><label class="switch"><input type="checkbox" id="swLinks" ' + (DB.settings.autoLinks ? 'checked' : '') + '><i></i><span class="small">Liens auto</span></label></div>' +
+    '<div class="card" style="margin-top:14px"><div class="kv"><span>Couverture du programme (≥1 analyse publiée par œuvre)</span><b>' + pct + '%</b></div><div class="progress" style="margin-top:8px"><i style="width:' + pct + '%"></i></div></div>' +
+    '<div class="grid grid-2">' +
+    '<div class="card"><h3 class="h">⏰ Planificateur (cron)</h3><p class="small muted" id="countdown">' + (DB.settings.actif ? '' : 'Planificateur arrêté.') + '</p>' +
+    '<div class="field" style="margin-top:10px"><label>Intervalle (minutes)</label><input type="number" id="freqInput" min="1" max="1440" value="' + DB.settings.freq + '" style="max-width:120px"></div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn--red btn--sm" id="btnStartSched">▶ Activer</button><button class="btn btn--ghost btn--sm" id="btnStopSched">⏸ Arrêter</button></div>' +
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px"><label class="switch"><input type="checkbox" id="swCollect" ' + (DB.settings.autoCollect ? 'checked' : '') + '><i></i><span class="small">Collecte auto</span></label><label class="switch"><input type="checkbox" id="swLinks" ' + (DB.settings.autoLinks ? 'checked' : '') + '><i></i><span class="small">Liens auto</span></label></div>' +
     '<p class="small muted" style="margin-top:10px">Dernière collecte : ' + (lastC ? fmtDT(lastC.ts) + ' (' + lastC.trigger + ')' : '—') + '</p></div>' +
-    '<div class="card"><h3 class="h">⚑ Veille BO</h3><button class="btn btn--ink btn--sm" id="btnWatchBO">⚑ Simuler une publication BO</button>' +
-    '<div style="margin-top:10px">' + (DB.watch.slice(0, 3).map(w => '<div class="kv"><span class="small">' + esc(w.message) + '</span></div>').join('') || '<p class="small muted">Aucun événement.</p>') + '</div></div>' +
+    '<div class="card"><h3 class="h">⚑ Veille BO / Éduscol & péremption</h3><p class="small muted" style="margin-bottom:10px">Programme en cours : <b>' + DB.settings.currentProgram + '</b> · suivant : <b>' + DB.settings.nextProgram + '</b>.</p>' +
+    '<button class="btn btn--ink btn--sm" id="btnWatchBO">⚑ Simuler une publication BO</button>' +
+    '<div style="margin-top:10px">' + (DB.watch.slice(0, 3).map(w => '<div class="kv"><span class="small">' + esc(w.message) + '</span><span class="mono muted small">' + fmtDT(w.ts) + '</span></div>').join('') || '<p class="small muted">Aucun événement de veille.</p>') + '</div></div>' +
     '</div>' +
-    '<div class="card"><h3 class="h">🖥 Journal</h3><div class="log">' + (DB.log.map(e => '<div><span class="t">[' + fmtDT(e.ts) + ']</span> <span class="' + e.cls + '">' + esc(e.msg) + '</span></div>').join('') || '<div class="muted">Vide.</div>') + '</div></div>';
+    '<div class="grid grid-2">' +
+    '<div class="card"><h3 class="h">🖥 Journal d\'exécution</h3><div class="log">' + (DB.log.map(e => '<div><span class="t">[' + fmtDT(e.ts) + ']</span> <span class="' + e.cls + '">' + esc(e.msg) + '</span></div>').join('') || '<div class="muted">Aucune exécution.</div>') + '</div></div>' +
+    '<div class="card"><h3 class="h">🧭 Protocole de test</h3><ol class="small" style="margin-left:18px;line-height:1.9">' +
+    '<li><b>Onglet 📡 Flux RSS</b> → « 🔄 Restaurer les flux par défaut » puis « 🧪 Tester tous ».</li>' +
+    '<li>Gardez <b>actifs</b> uniquement les flux qui répondent (interrupteur).</li>' +
+    '<li><b>Décochez « Mode Simulation »</b> (onglet Liens) pour le réseau réel.</li>' +
+    '<li><b>⚡ Lancer une collecte</b> → les vrais épisodes arrivent dans l\'inbox.</li>' +
+    '<li><b>Workflow</b> : Candidate → En revue → Valider → Publier.</li>' +
+    '<li><b>🧪 Diagnostic</b> : le test flux passe si ≥1 flux OK.</li></ol></div>' +
+    '</div>';
 }
 
-/* ---------- ONGLET DÉDIÉ FLUX RSS ---------- */
+/* ---------- ONGLET FLUX RSS ---------- */
 function viewFeeds() {
   const sources = DB.sources || [];
   const active = sources.filter(s => s.actif !== false);
   const canEdit = can('feeds');
   return '<div class="card"><h3 class="h">📡 Flux RSS configurés (' + sources.length + ' · ' + active.length + ' actifs)</h3>' +
-    '<p class="small muted" style="margin-bottom:12px">Ajoutez, testez et gérez les flux utilisés par la <b>collecte réelle</b>. Les flux désactivés sont ignorés. Sauvegardé dans Supabase.</p>' +
+    '<p class="small muted" style="margin-bottom:12px">Ajoutez, testez et gérez les flux de la <b>collecte réelle</b>. Un flux qui renvoie « 404 » est une adresse morte chez l\'éditeur : désactivez-le ou remplacez-le. Sauvegardé dans Supabase.</p>' +
+    (canEdit ? '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn--teal btn--sm" id="btnTestAllFeeds">🧪 Tester tous les flux</button><button class="btn btn--ghost btn--sm" id="btnRestoreFeeds">🔄 Restaurer les flux par défaut</button></div>' : '') +
     (canEdit ? '<div class="feed-add"><input type="text" id="newFeedNom" placeholder="Nom du flux"><input type="text" id="newFeedUrl" placeholder="URL du flux (https://...rss.xml)"><button class="btn btn--green btn--sm" id="btnAddFeed">➕ Ajouter</button></div>' : '') +
-    (canEdit && sources.length ? '<div style="margin-bottom:12px"><button class="btn btn--teal btn--sm" id="btnTestAllFeeds">🧪 Tester tous les flux</button></div>' : '') +
     '<div style="display:flex;flex-direction:column;gap:8px">' +
-    (sources.length === 0 ? '<div class="empty">Aucun flux. Ajoutez-en un ci-dessus.</div>' :
+    (sources.length === 0 ? '<div class="empty">Aucun flux. Ajoutez-en un ou restaurez les défauts.</div>' :
       sources.map(s => '<div class="feed-row ' + (s.actif === false ? 'inactive' : '') + '">' +
         (canEdit ? '<label class="switch" style="flex:none"><input type="checkbox" ' + (s.actif !== false ? 'checked' : '') + ' data-toggle-feed="' + s.id + '"><i></i></label>' : '<span style="width:38px;flex:none"></span>') +
         '<div style="flex:1;min-width:0"><span class="feed-name">' + esc(s.nom) + (s.actif === false ? ' <span class="b b-grey">inactif</span>' : ' <span class="b b-green">actif</span>') + '</span><span class="feed-url">' + esc(s.feed) + '</span></div>' +
@@ -601,11 +635,11 @@ function viewFeeds() {
         (canEdit ? '<button class="btn btn--ghost btn--sm" data-remove-feed="' + s.id + '" style="color:var(--red)">🗑</button>' : '') +
         '</div>').join('')) +
     '</div></div>' +
-    '<div class="card"><h3 class="h">ℹ️ Trouver un flux RSS</h3><ul class="small" style="margin-left:18px;line-height:1.8">' +
-    '<li><b>France Culture</b> : .../podcasts/NOM/rss.xml</li>' +
-    '<li><b>Acast</b> : https://feeds.acast.com/public/shows/NOM</li>' +
-    '<li><b>YouTube</b> : https://www.youtube.com/feeds/videos.xml?channel_id=UC...</li>' +
-    '<li>Testez toujours un flux avant une collecte réelle.</li></ul></div>';
+    '<div class="card"><h3 class="h">ℹ️ Trouver un flux RSS qui marche</h3><ul class="small" style="margin-left:18px;line-height:1.8">' +
+    '<li><b>Acast</b> : https://feeds.acast.com/public/shows/NOM (souvent fiable)</li>' +
+    '<li><b>YouTube</b> : https://www.youtube.com/feeds/videos.xml?channel_id=UC… (ID dans « À propos »)</li>' +
+    '<li><b>France Culture</b> : …/podcasts/NOM/rss.xml (parfois 404 → tester)</li>' +
+    '<li>Testez toujours avant une collecte réelle.</li></ul></div>';
 }
 
 let lienFiltre = 'tous';
@@ -617,7 +651,8 @@ function viewLiens() {
     '<span style="flex:1"></span>' +
     '<label class="switch"><input type="checkbox" id="swTestMode" ' + (DB.settings.testMode ? 'checked' : '') + '><i></i><span class="small">Mode Simulation</span></label>' +
     '<button class="btn btn--ghost btn--sm" id="btnCheckLot">🔎 Tester un lot</button></div>' +
-    '<div class="card" style="padding:0;overflow-x:auto"><table class="tbl" id="liensTbl"></table></div>';
+    '<div class="hint">ℹ️ Le <b>mode réseau réel</b> appelle <span class="mono">/api/check-link</span> (déployé sur Vercel).</div>' +
+    '<div class="card" style="margin-top:12px;padding:0;overflow-x:auto"><table class="tbl" id="liensTbl"></table></div>';
 }
 function renderLiensTable() {
   const tbl = $('#liensTbl'); if (!tbl) return;
@@ -652,7 +687,7 @@ function viewCollecte() {
     '<button class="chipbtn ' + (inboxFiltre === 'publiee' ? 'on' : '') + '" data-if="publiee">Publiées</button>' +
     '<button class="chipbtn ' + (inboxFiltre === 'ecartees' ? 'on' : '') + '" data-if="ecartees">Écartées</button>' +
     '<span style="flex:1"></span><button class="btn btn--red btn--sm" id="btnCollectNow2">⚡ Lancer une collecte</button></div>' +
-    '<div class="hint">Mode : <b>' + (DB.settings.testMode ? 'SIMULATION' : 'RÉEL (' + (DB.sources || []).filter(s => s.actif !== false).length + ' flux actifs — voir onglet 📡)') + '</b></div>' +
+    '<div class="hint">Mode : <b>' + (DB.settings.testMode ? 'SIMULATION' : 'RÉEL (' + (DB.sources || []).filter(s => s.actif !== false).length + ' flux actifs — onglet 📡)') + '</b></div>' +
     (items.length === 0 ? '<div class="empty">Aucun élément.</div>' : items.map(itemCard).join('')) +
     '<h2 class="section">Historique des collectes</h2><div class="card" style="padding:0;overflow-x:auto"><table class="tbl"><thead><tr><th>Date</th><th>Déclencheur</th><th>Nouveaux</th><th>Doublons</th></tr></thead><tbody>' +
     (DB.collectes.map(c => '<tr><td class="mono">' + fmtDT(c.ts) + '</td><td>' + esc(c.trigger) + '</td><td><b>' + c.nouveaux + '</b></td><td>' + c.doublons + '</td></tr>').join('') || '<tr><td colspan="4" class="muted">Aucune.</td></tr>') + '</tbody></table></div>';
@@ -699,11 +734,9 @@ function viewSecurite() {
     '<div class="kv" style="margin-top:12px"><span>Flux RSS</span><b>' + (DB.sources || []).length + '</b></div><div class="kv"><span>Audit</span><b>' + DB.audit.length + '</b></div></div>';
 }
 
-/* ---------- 14. EXPORT / IMPORT ---------- */
-function exportJSON() { const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'curation-eaf-v45.json'; a.click(); URL.revokeObjectURL(a.href); toast('Export téléchargé.', 'ok'); }
+function exportJSON() { const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'curation-eaf-v46.json'; a.click(); URL.revokeObjectURL(a.href); toast('Export téléchargé.', 'ok'); }
 function importJSON(file) { if (!file) return; const rd = new FileReader(); rd.onload = function () { try { const o = JSON.parse(rd.result); if (!o || o.version !== 3 || !o.liens) throw 0; DB = normalizeState(o); save(); toast('Import réussi.', 'ok'); refreshCounts(); render(); } catch (e) { toast('Fichier invalide.', 'err'); } }; rd.readAsText(file); }
 
-/* ---------- 15. ÉVÉNEMENTS ---------- */
 function setupListeners() {
   $('#nav').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view); });
   $('#rolePick').addEventListener('change', e => { DB.role = e.target.value; save(); toast('Rôle : ' + roleName[DB.role]); render(); });
@@ -720,9 +753,9 @@ function setupListeners() {
       if ((el = e.target.closest('[data-rappok]'))) { const r = DB.rapports.find(x => x.id === el.dataset.rappok); if (r) { r.statut = 'traité'; save(); render(); } return; }
       if ((el = e.target.closest('[data-approve]'))) { approveSource(el.dataset.approve, true); return; }
       if ((el = e.target.closest('[data-refuse]'))) { approveSource(el.dataset.refuse, false); return; }
-      /* Flux RSS */
       if (e.target.closest('#btnAddFeed')) { addFeed(); return; }
       if (e.target.closest('#btnTestAllFeeds')) { testAllFeeds(); return; }
+      if (e.target.closest('#btnRestoreFeeds')) { restoreDefaultFeeds(); return; }
       if ((el = e.target.closest('[data-remove-feed]'))) { removeFeed(el.dataset.removeFeed); return; }
       if ((el = e.target.closest('[data-test-feed]'))) { testFeedUI(el.dataset.testFeed); return; }
       if (e.target.closest('#btnCheckLot')) { runLinkCheck(12); return; }
@@ -754,7 +787,6 @@ function setupListeners() {
   });
 }
 
-/* ---------- 16. NORMALISATION ---------- */
 function normalizeState(saved) {
   const base = seed();
   const st = Object.assign({}, base, saved || {});
@@ -769,23 +801,22 @@ function normalizeState(saved) {
   if (!Array.isArray(st.log)) st.log = [];
   if (!st.fingerprints || typeof st.fingerprints !== 'object') st.fingerprints = {};
   if (!st.role) st.role = 'admin';
-  if (!Array.isArray(st.sources) || st.sources.length === 0) st.sources = base.sources;
+  if (!Array.isArray(st.sources) || st.sources.length === 0) st.sources = clone(DEFAULT_FEEDS);
   st.version = 3;
   return st;
 }
 
-/* ---------- 17. INIT ---------- */
 (async function () {
   try {
     setupListeners();
-    console.log('[INIT] 🚀 v4.5 démarrage...');
+    console.log('[INIT] 🚀 v4.6 démarrage...');
     const saved = await Storage.init();
     DB = (saved && saved.version === 3) ? normalizeState(saved) : seed();
     Storage.write(DB);
     $('#rolePick').value = DB.role;
     updateStorageTag(); refreshCounts(); setView('dashboard');
     if (DB.settings.actif) { DB.settings.actif = false; save(); }
-    console.log('[INIT] ✅ Application prête (v4.5)');
+    console.log('[INIT] ✅ Application prête (v4.6)');
   } catch (err) {
     console.error('[INIT] ❌', err);
     document.getElementById('view').innerHTML = '<div class="fatal"><h2>⚠️ Erreur d\'initialisation</h2><p>' + esc(err.message) + '</p><button class="btn btn--red" onclick="location.reload()">⟲ Réessayer</button></div>';
